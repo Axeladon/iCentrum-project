@@ -3,10 +3,15 @@ package org.example.scraper.service;
 import org.example.scraper.auth.SessionManager;
 import org.example.scraper.model.Order;
 import org.example.scraper.model.PhoneModel;
+import org.example.scraper.util.PriceUtils;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -17,14 +22,14 @@ public class OrderFetcher {
         try {
             Document page = SessionManager.getInstance().getPage(orderDetailsUrl);
             order.setOrderNumber(page.select("div[data-order-id]").attr("data-order-id"));
-            order.setClientName(page.select("ul.list > li > span.js__copy-on-click.color_on-hover-highlight-bg").first().text());
+            order.setClientName(Objects.requireNonNull(page.select("ul.list > li > span.js__copy-on-click.color_on-hover-highlight-bg").first()).text());
             order.setPaymentStatus(page.select("div#order-paid-field a").text());
 
             String price = page.select("span.color_dark.size_xxl.color_highlight-1").text();
             if (price.isEmpty()) {
                 price = page.select("span.color_dark.size_xxl.color_highlight-3").text();
             }
-            order.setPrice(price.replaceAll("[^0-9,]", "").replace(" ", ""));
+            order.setTotalPrice(price.replaceAll("[^0-9,]", "").replace(" ", ""));
 
             Element firstPickupPoint = page.select("span[data-test-id=pickup-point-point]").first();
             order.setParcelMachineNum((firstPickupPoint != null) ? firstPickupPoint.text() : "");
@@ -53,34 +58,55 @@ public class OrderFetcher {
         }
     }
 
-    public void fetchOrderTableData(String orderId, Order order) {
+    public List<PhoneModel> fetchOrderTableData(String orderId) {
         String orderTableUrl = "https://applecentrum-612788.shoparena.pl/admin/orders/viewTable/id/" + orderId;
+        List<PhoneModel> phoneModels = new ArrayList<>();
+
         try {
             Document page = SessionManager.getInstance().getPage(orderTableUrl);
 
-            String productName = page.select("td.cell_header a.link").text();
-            String color = getFieldValue(page, "Kolor:");
-            String memory = getFieldValue(page, "Pamięć GB:");
-            boolean newBattery = getFieldValue(page, "Nowa bateria 100%:").equals("TAK");
-            String itemGrade = getFieldValue(page, "Stan:");
-            boolean chargerCable = getFieldValue(page, "ŁADOWARKA + KABEL BASEUS:").equals("TAK");
+            Elements rows = page.select("tr.tr_responsive-columns"); // get all rows with phones
 
-            PhoneModel phoneModel = new PhoneModel(productName, color, memory, newBattery, itemGrade);
-            order.setPhoneModel(phoneModel);
-            order.setChargerIncluded(chargerCable);
+            for (Element row : rows) {
+                String productName = row.select("td.cell_header a.link").text();
+                String color = getFieldValue(row, "Kolor:");
+                String memory = getFieldValue(row, "Pamięć GB:");
+                String itemGrade = getFieldValue(row, "Stan:");
+                boolean newBattery = getFieldValue(row, "Nowa bateria 100%:").equals("TAK");
+                boolean charger = getFieldValue(row, "ŁADOWARKA + KABEL BASEUS:").equals("TAK");
+                String priceText = Objects.requireNonNull(row.select("td[data-label=Cena] span").first()).text();
+                BigDecimal price = PriceUtils.parsePrice(priceText);
 
+                String quantityText = row.select("td[data-label=Ilość]").text();
+                int quantity = extractQuantity(quantityText);
+
+                // create N models
+                for (int i = 0; i < quantity; i++) {
+                    PhoneModel phoneModel = new PhoneModel(productName, color, memory, itemGrade, newBattery, charger, price);
+                    phoneModels.add(phoneModel);
+                }
+            }
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+        return phoneModels;
     }
 
-    private String getFieldValue(Document page, String label) {
-        Elements spans = page.select("span.size_m.break_word");
+    private String getFieldValue(Element row, String label) {
+        Elements spans = row.select("span.size_m.break_word");
         for (Element span : spans) {
             if (span.text().startsWith(label)) {
                 return span.text().substring(label.length() + 1);
             }
         }
         return "Not found";
+    }
+
+    private int extractQuantity(String text) {
+        try {
+            return Integer.parseInt(text.replace("szt.", "").trim());
+        } catch (NumberFormatException e) {
+            return 1; // По умолчанию 1
+        }
     }
 }

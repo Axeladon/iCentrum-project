@@ -1,8 +1,10 @@
 package org.example.scraper.service;
 
 import org.example.scraper.model.Order;
+import org.example.scraper.model.PhoneModel;
 
 import java.io.File;
+import java.util.List;
 
 public class OrderService {
 
@@ -16,7 +18,10 @@ public class OrderService {
     public String fetchAndGetOrderInfo(String orderId) {
 
         orderFetcher.fetchOrderDetails(orderId, order);
-        orderFetcher.fetchOrderTableData(orderId, order);
+
+        List<PhoneModel> phoneModelList = orderFetcher.fetchOrderTableData(orderId);
+        order.setPhoneModelList(phoneModelList);
+
         return getOrderInfo();
     }
 

@@ -6,6 +6,8 @@ import org.example.scraper.model.PhoneModel;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 public class HtmlFileGenerator {
@@ -90,30 +92,42 @@ public class HtmlFileGenerator {
 
     public static void generateFileReport(Order order, File file) {
         try (FileWriter writer = new FileWriter(file)) {
-            writer.write(buildHtmlContent(order));
+            List<String> labelList = buildPhoneLabels(order);
+            for (String label : labelList) {
+                writer.write(label);
+            }
         } catch (IOException e) {
             throw new RuntimeException("Failed to generate HTML report", e);
         }
     }
 
-    private static String buildHtmlContent(Order order) {
-        PhoneModel phoneModel = order.getPhoneModel();
+    /**
+     * Builds a list of HTML labels for each phone in the given order.
+     * @param order the order containing phone models
+     * @return list of HTML-formatted labels
+     */
+    private static List<String> buildPhoneLabels(Order order) {
+        List<String> labelList = new ArrayList<>();
+        List<PhoneModel> phoneModelList = order.getPhoneModelList();
 
-        String orderLabel = "#" + order.getOrderNumber() + " - " + convertGradeToAbbreviation(phoneModel.getItemGrade());
-        String phoneLabel = formatPhoneName(phoneModel.getName()) + " " + phoneModel.getMemory() + " " + phoneModel.getColor();
-        String batteryLabel = phoneModel.isNewBattery() ? BATTERY_STATUS_NEW : BATTERY_STATUS_DEFAULT;
-        String pickupAndDateLabel = convertPolishDateToNumeric(order.getDeclaredShippingDate());
-        boolean personalPickup = order.isPersonalPickup();
-        if (personalPickup) {
-            pickupAndDateLabel = "Odbior osob. " + pickupAndDateLabel;
+        for (int i = 0; i < phoneModelList.size(); i++) {
+            PhoneModel phoneModel = phoneModelList.get(i);
+            String orderLabel = "#" + order.getOrderNumber() + " - " + convertGradeToAbbreviation(phoneModel.getItemGrade());
+            int totalPhones = phoneModelList.size();
+            if (totalPhones > 1) {
+                orderLabel += "(" + (i + 1) + "/" + totalPhones + ")";
+            }
+
+            String phoneLabel = formatPhoneName(phoneModel.getName()) + " " + phoneModel.getMemory() + " " + phoneModel.getColor();
+            String batteryLabel = phoneModel.isNewBattery() ? BATTERY_STATUS_NEW : BATTERY_STATUS_DEFAULT;
+            String pickupAndDateLabel = convertPolishDateToNumeric(order.getDeclaredShippingDate());
+            boolean personalPickup = order.isPersonalPickup();
+            if (personalPickup) {
+                pickupAndDateLabel = "Odbior osob. " + pickupAndDateLabel;
+            }
+            labelList.add(String.format(HTML_TEMPLATE, orderLabel, phoneLabel, batteryLabel, pickupAndDateLabel));
         }
-
-        System.out.println("orderLabel: " + orderLabel);
-        System.out.println("phoneLabel: " + phoneLabel);
-        System.out.println("batteryLabel: " + batteryLabel);
-        System.out.println("pickupAndDateLabel: " + pickupAndDateLabel);
-
-        return String.format(HTML_TEMPLATE, orderLabel, phoneLabel, batteryLabel, pickupAndDateLabel);
+        return labelList;
     }
 
     private static String convertPolishDateToNumeric(String polishDate) {

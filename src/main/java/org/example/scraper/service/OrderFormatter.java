@@ -1,25 +1,39 @@
 package org.example.scraper.service;
 
 import org.example.scraper.model.Order;
+import org.example.scraper.model.PhoneModel;
+import org.example.scraper.util.PriceUtils;
+
+import java.math.BigDecimal;
+import java.util.List;
 
 public class OrderFormatter {
     public static String formatOrderInfo (Order order, String additionalText)  {
+        List<PhoneModel> phoneModelList = order.getPhoneModelList();
+        boolean hasMultiplePhones = phoneModelList.size() > 1;
         StringBuilder orderInfo = new StringBuilder();
 
         orderInfo.append("#").append(order.getOrderNumber()).append("\n");
-        orderInfo.append(order.getPhoneModel().getName()).append(" ")
-                .append(order.getPhoneModel().getMemory()).append(" ")
-                .append(order.getPhoneModel().getColor()).append(" ").append("\n");
+        for (PhoneModel phoneModel : phoneModelList) {
+            orderInfo.append(phoneModel.getName()).append(" ")
+                    .append(phoneModel.getMemory()).append(" ")
+                    .append(phoneModel.getColor()).append(" ").append("\n");
 
-        if (order.getPhoneModel().isNewBattery()) {
-            orderInfo.append("(100%, ").append(additionalText).append(")\n");
-        } else {
-            orderInfo.append("(81%+, ").append(additionalText).append(")\n");
+            String batteryStatus = phoneModel.isNewBattery() ? "100%" : "81%+";
+            orderInfo.append("(").append(batteryStatus).append(", ").append(additionalText).append(")\n");
+
+            if (hasMultiplePhones) {
+                BigDecimal price = phoneModel.getPrice();
+                orderInfo.append("Na fakturze: ").append(PriceUtils.formatPrice(price)).append("\n");
+            }
+            if (phoneModel.isChargerIncluded()) {
+                orderInfo.append("Ładowarka").append("\n");
+            }
+            if (hasMultiplePhones) {
+                orderInfo.append("\n");
+            }
         }
-        orderInfo.append("Opłacone".equals(order.getPaymentStatus()) ? "Opłacone: " : "Pobranie: ").append(order.getPrice()).append(" zł\n");
-        if (order.isChargerIncluded()) {
-            orderInfo.append("Ładowarka").append("\n");
-        }
+        orderInfo.append("Opłacone".equals(order.getPaymentStatus()) ? "Opłacone: " : "Pobranie: ").append(order.getTotalPrice()).append(" zł\n");
         if (order.getNip() != null && !order.getNip().isEmpty()) {
             orderInfo.append("NIP: ").append(order.getNip()).append("\n");
         }

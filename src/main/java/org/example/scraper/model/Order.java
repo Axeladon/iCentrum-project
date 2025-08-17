@@ -1,11 +1,13 @@
 package org.example.scraper.model;
 
+import java.math.BigDecimal;
+import java.util.List;
+
 public class Order {
     private String orderNumber;
     private String paymentStatus;
-    private boolean chargerIncluded;
-    private PhoneModel phoneModel;
-    private String price;
+    private List<PhoneModel> phoneModelList;
+    private String totalPrice;
     private String parcelMachineNum;
     private String nip;
     private String clientName;
@@ -28,12 +30,12 @@ public class Order {
         return paymentStatus;
     }
 
-    public void setPrice(String price) {
-        this.price = price;
+    public void setTotalPrice(String price) {
+        this.totalPrice = price;
     }
 
-    public String getPrice() {
-        return price;
+    public String getTotalPrice() {
+        return totalPrice;
     }
 
     public void setParcelMachineNum(String parcelMachineNum) {
@@ -60,20 +62,12 @@ public class Order {
         return clientName;
     }
 
-    public void setChargerIncluded(boolean chargerIncluded) {
-        this.chargerIncluded = chargerIncluded;
+    public List<PhoneModel> getPhoneModelList() {
+        return phoneModelList;
     }
 
-    public boolean isChargerIncluded() {
-        return chargerIncluded;
-    }
-
-    public void setPhoneModel(PhoneModel phoneModel) {
-        this.phoneModel = phoneModel;
-    }
-
-    public PhoneModel getPhoneModel() {
-        return phoneModel;
+    public void setPhoneModelList(List<PhoneModel> phoneModelList) {
+        this.phoneModelList = phoneModelList;
     }
 
     public String getDeclaredShippingDate() {
