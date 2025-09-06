@@ -2,8 +2,9 @@ module org.example.scraper {
     requires javafx.controls;
     requires javafx.fxml;
     requires org.jsoup;
-    requires java.desktop;
     requires org.json;
+    requires org.jetbrains.annotations;
+    requires java.desktop;
 
     exports org.example.scraper.model;
     opens org.example.scraper.model to javafx.fxml;

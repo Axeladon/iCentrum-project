@@ -8,4 +8,8 @@ public class Credentials {
         this.login = login;
         this.password = password;
     }
+
+    public static Credentials empty() {
+        return new Credentials("", "");
+    }
 }

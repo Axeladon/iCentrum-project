@@ -1,6 +1,7 @@
 package org.example.scraper.auth;
 
 import org.example.scraper.service.FileUtils;
+import org.jetbrains.annotations.NotNull;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -13,11 +14,12 @@ public class CredentialsManager {
     private static final String CREDENTIALS_FILE = "credentials.json";
 
     // Load credentials for a specific account (e.g., "shoper", "crm")
+    @NotNull
     public static Credentials loadCredentials(String accountKey) {
         File file = FileUtils.getFileInDataFolder(CREDENTIALS_FILE);
 
         if (!file.exists()) {
-            return new Credentials("", "");
+            return Credentials.empty();
         }
 
         try {
@@ -26,7 +28,7 @@ public class CredentialsManager {
 
             JSONObject account = allAccounts.optJSONObject(accountKey);
             if (account == null) {
-                return new Credentials("", "");
+                return Credentials.empty();
             }
 
             String login = account.optString("login", "");
@@ -35,7 +37,7 @@ public class CredentialsManager {
             return new Credentials(login, password);
         } catch (IOException e) {
             e.printStackTrace();
-            return new Credentials("", "");
+            return Credentials.empty();
         }
     }
 
