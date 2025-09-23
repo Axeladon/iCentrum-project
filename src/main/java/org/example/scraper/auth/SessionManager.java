@@ -1,5 +1,6 @@
 package org.example.scraper.auth;
 
+import org.example.scraper.model.SiteId;
 import org.jsoup.Connection;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -10,7 +11,7 @@ import java.util.Map;
 public class SessionManager {
     private static volatile SessionManager instance;
 
-    private final CookieStore cookieStore = new CookieStore();
+    private final CookieManager cookieManager = new CookieManager();
     private static final String DEFAULT_ORDER_NUMBER = "123456";
     private static final String ORDER_PAGE_URL_PREFIX = "https://applecentrum-612788.shoparena.pl/admin/orders/view/id/";
     private static final String LOGIN_URL = "https://applecentrum-612788.shoparena.pl/admin/auth/login";
@@ -42,7 +43,7 @@ public class SessionManager {
                     .execute();
 
             if (loginResponse.statusCode() == 200 || loginResponse.statusCode() == 302) {
-                cookieStore.update(loginResponse.cookies());
+                cookieManager.update(SiteId.SHOPER, loginResponse.cookies());
             }
             logCookies("After login");
         } catch (Exception e) {
@@ -56,7 +57,7 @@ public class SessionManager {
 
         Connection.Response response = Jsoup.connect(url)
                 .method(Connection.Method.POST)
-                .cookies(cookieStore.getAll())
+                .cookies(cookieManager.getAll(SiteId.SHOPER))
                 .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)...")
                 .header("Content-Type", "application/x-www-form-urlencoded")
                 .header("Referer", ORDER_PAGE_URL_PREFIX + DEFAULT_ORDER_NUMBER)
@@ -71,13 +72,13 @@ public class SessionManager {
         } else {
             throw new Exception("2FA verification failed! Status code: " + response.statusCode());
         }
-        cookieStore.update(response.cookies());
+        cookieManager.update(SiteId.SHOPER, response.cookies());
     }
 
     public Document getPage(String url) throws Exception {
         logCookies("Before getPage: " + url);
         Connection.Response pageResponse = Jsoup.connect(url)
-                .cookies(cookieStore.getAll())
+                .cookies(cookieManager.getAll(SiteId.SHOPER))
                 .method(Connection.Method.GET)
                 .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)...")
                 .header("Referer", "https://applecentrum-612788.shoparena.pl/admin/dashboard")
@@ -127,11 +128,11 @@ public class SessionManager {
 
     public void logCookies(String message) {
         System.out.println("[" + message + "]");
-        cookieStore.getAll().forEach((k, v) -> System.out.println(k + ": " + (v.length() > 80 ? v.substring(0, 80) + "..." : v)));
+        cookieManager.getAll(SiteId.SHOPER).forEach((k, v) -> System.out.println(k + ": " + (v.length() > 80 ? v.substring(0, 80) + "..." : v)));
     }
 
     public Map<String, String> getLoginCookies() {
-        Map<String, String> all = cookieStore.getAll();
+        Map<String, String> all = cookieManager.getAll(SiteId.SHOPER);
         Map<String, String> filtered = new HashMap<>();
 
         all.forEach((k, v) -> {
