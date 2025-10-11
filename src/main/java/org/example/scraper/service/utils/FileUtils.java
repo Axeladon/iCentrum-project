@@ -1,4 +1,4 @@
-package org.example.scraper.service;
+package org.example.scraper.service.utils;
 
 import java.io.File;
 

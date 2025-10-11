@@ -5,7 +5,9 @@ module org.example.scraper {
     requires org.json;
     requires org.jetbrains.annotations;
     requires com.fasterxml.jackson.databind;
-    requires java.desktop; // Needed for java.awt.Desktop
+    requires java.desktop;
+    requires java.net.http;
+    requires static lombok; // Needed for java.awt.Desktop
 
     exports org.example.scraper.model;
     opens org.example.scraper.model to javafx.fxml;

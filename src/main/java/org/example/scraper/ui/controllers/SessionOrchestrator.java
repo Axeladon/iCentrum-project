@@ -2,11 +2,9 @@ package org.example.scraper.ui.controllers;
 
 import javafx.application.Platform;
 import javafx.concurrent.Task;
-import org.example.scraper.auth.AccessStatus;
-import org.example.scraper.auth.Credentials;
-import org.example.scraper.auth.CredentialsManager;
-import org.example.scraper.auth.SessionManager;
-import org.example.scraper.service.FileUtils;
+import org.example.scraper.auth.*;
+import org.example.scraper.model.SiteId;
+import org.example.scraper.service.utils.FileUtils;
 import org.example.scraper.service.OrderFetcher;
 import org.example.scraper.service.OrderService;
 import org.jsoup.nodes.Document;
@@ -16,7 +14,6 @@ import java.io.File;
 import java.util.function.Consumer;
 
 public class SessionOrchestrator {
-    private static final String ACCOUNT_KEY = "shoper";
     private static final String ORDER_PAGE_URL_PREFIX = "https://applecentrum-612788.shoparena.pl/admin/orders/view/id/";
     private static final String DEFAULT_PROBE_ORDER_ID = "123456";
     private static final String TWO_FA_URL = "https://applecentrum-612788.shoparena.pl/admin/auth/totp-sms";
@@ -24,29 +21,29 @@ public class SessionOrchestrator {
     private final SessionManager session = SessionManager.getInstance();
     private final OrderService orderService = new OrderService(new OrderFetcher());
 
-    private Credentials credentials = CredentialsManager.loadCredentials(ACCOUNT_KEY);
+    private Credentials shoperCredentials = CredentialsManager.loadCredentials(SiteId.SHOPER.getJsonKey());
 
     // ---- Credentials API -----------------------------------------------------
 
     public Credentials loadSavedCredentials() {
-        return credentials;
+        return shoperCredentials;
     }
 
     public void saveCredentials(Credentials creds) {
-        CredentialsManager.saveCredentials(ACCOUNT_KEY, creds);
-        credentials = creds;
+        CredentialsManager.saveCredentials(SiteId.SHOPER.getJsonKey(), creds);
+        shoperCredentials = creds;
     }
 
     // ---- Auth / 2FA flows ----------------------------------------------------
 
     public void loginFlow(Credentials creds, boolean remember, Consumer<AccessStatus> onStatus, Consumer<String> onError) {
-        if (remember) saveCredentials(creds); else credentials = creds;
+        if (remember) saveCredentials(creds); else shoperCredentials = creds;
 
         Task<AccessStatus> task = new Task<>() {
             @Override protected AccessStatus call() throws Exception {
                 AccessStatus status = probeAccess(DEFAULT_PROBE_ORDER_ID);
                 if (status == AccessStatus.LOGIN_REQUIRED) {
-                    session.login(credentials.login, credentials.password);
+                    session.login(shoperCredentials.login(), shoperCredentials.password());
                     status = probeAccess(DEFAULT_PROBE_ORDER_ID);
                 }
                 return status;
@@ -57,9 +54,7 @@ public class SessionOrchestrator {
         new Thread(task, "login-flow").start();
     }
 
-    public void submitTwoFaAndRecheck(String code,
-                                      Consumer<AccessStatus> onStatus,
-                                      Consumer<String> onError) {
+    public void submitTwoFaAndRecheck(String code, Consumer<AccessStatus> onStatus, Consumer<String> onError) {
         Task<AccessStatus> task = new Task<>() {
             @Override protected AccessStatus call() throws Exception {
                 session.sendSmsCode(TWO_FA_URL, code);
@@ -71,13 +66,8 @@ public class SessionOrchestrator {
         new Thread(task, "2fa-flow").start();
     }
 
-    // ---- Guarded operations --------------------------------------------------
-
-    public void collectOrderGuarded(String orderId,
-                                    Consumer<String> onOutput,
-                                    Consumer<String> onError,
-                                    Runnable onTwoFaNeeded) {
-        if (!validateOrderId(orderId, onError)) return;
+    public void collectOrderGuarded(String orderId, Consumer<String> onOutput, Consumer<String> onError, Runnable onTwoFaNeeded) {
+        if (hasInvalidOrderId(orderId, onError)) return;
 
         Task<Void> task = new Task<>() {
             @Override protected Void call() throws Exception {
@@ -85,7 +75,7 @@ public class SessionOrchestrator {
 
                 if (status == AccessStatus.LOGIN_REQUIRED) {
                     ensureHaveCredentials();
-                    session.login(credentials.login, credentials.password);
+                    session.login(shoperCredentials.login(), shoperCredentials.password());
                     status = probeAccess(orderId);
                 }
 
@@ -112,7 +102,7 @@ public class SessionOrchestrator {
                                                 Consumer<String> onOutput,
                                                 Consumer<String> onError,
                                                 Runnable onTwoFaNeeded) {
-        if (!validateOrderId(orderId, onError)) return;
+        if (hasInvalidOrderId(orderId, onError)) return;
 
         Task<Void> task = new Task<>() {
             @Override protected Void call() throws Exception {
@@ -120,7 +110,7 @@ public class SessionOrchestrator {
 
                 if (status == AccessStatus.LOGIN_REQUIRED) {
                     ensureHaveCredentials();
-                    session.login(credentials.login, credentials.password);
+                    session.login(shoperCredentials.login(), shoperCredentials.password());
                     status = probeAccess(orderId);
                 }
 
@@ -154,9 +144,7 @@ public class SessionOrchestrator {
         new Thread(task, "collect+report").start();
     }
 
-    public void applyOrderTag(String tag,
-                              Consumer<String> onOutput,
-                              Consumer<String> onError) {
+    public void applyOrderTag(String tag, Consumer<String> onOutput, Consumer<String> onError) {
         try {
             String text = orderService.getOrderInfo(tag);
             if (text == null || text.isBlank()) {
@@ -169,7 +157,6 @@ public class SessionOrchestrator {
         }
     }
     // ---- Helpers -------------------------------------------------------------
-
     private AccessStatus probeAccess(String orderId) throws Exception {
         String url = ORDER_PAGE_URL_PREFIX + orderId;
         Document page = session.getPage(url);
@@ -177,23 +164,23 @@ public class SessionOrchestrator {
     }
 
     private void ensureHaveCredentials() {
-        if (credentials == null
-                || credentials.login == null || credentials.login.isBlank()
-                || credentials.password == null || credentials.password.isBlank()) {
+        if (shoperCredentials == null
+                || shoperCredentials.login() == null || shoperCredentials.login().isBlank()
+                || shoperCredentials.password() == null || shoperCredentials.password().isBlank()) {
             throw new IllegalStateException("Please login first (open the Login tab).");
         }
     }
 
-    private boolean validateOrderId(String orderId, Consumer<String> onError) {
+    private boolean hasInvalidOrderId(String orderId, Consumer<String> onError) {
         if (orderId == null || orderId.isBlank()) {
             onError.accept("Order number is empty");
-            return false;
+            return true;
         }
         if (!orderId.matches("\\d+")) {
             onError.accept("Order number should contain digits only");
-            return false;
+            return true;
         }
-        return true;
+        return false;
     }
 
     private static String rootMessage(Throwable t) {
@@ -202,8 +189,8 @@ public class SessionOrchestrator {
         return r.getMessage() == null ? r.toString() : r.getMessage();
     }
 
-    public void handleReservationRequest(String orderId,
-                                         java.util.function.Consumer<String> onError) {
+    public void handleFakturaXlRequest(String orderId,
+                                       java.util.function.Consumer<String> onError) {
         if (orderId == null || orderId.isBlank()) {
             onError.accept("Order number is empty");
             return;
@@ -212,8 +199,28 @@ public class SessionOrchestrator {
             onError.accept("Order number should contain digits only");
             return;
         }
-        // Stub for now: replace with real reservation logic later
-        onError.accept("Reservation flow is under development");
+
+        try {
+            FakturaXLSession fakturaXlSession = new FakturaXLSession("TOKEN!!!");
+
+            // Create invoices and get human-friendly identifiers (e.g., "FV 76/5/2025" or "ID: 1460568").
+            java.util.List<String> ids =
+                    fakturaXlSession.createMarginAndVatInvoice(orderService.getOrder(), orderId);
+
+            onError.accept(buildFakturaMessage(ids));
+        } catch (Exception e) {
+            onError.accept("Failed to create invoices: " + e.getMessage());
+        }
+    }
+
+    private String buildFakturaMessage(java.util.List<String> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return "Nie udało się odczytać numeru dokumentu.";
+        }
+        if (ids.size() == 1) {
+            return "Utworzono fakturę: " + ids.get(0);
+        }
+        return "Utworzono faktury: " + String.join(", ", ids);
     }
 }
 

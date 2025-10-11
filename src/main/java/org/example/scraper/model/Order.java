@@ -1,88 +1,43 @@
 package org.example.scraper.model;
 
+import lombok.Getter;
+import lombok.Setter;
+
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 
+@Setter
+@Getter
 public class Order {
     private String orderNumber;
     private String paymentStatus;
     private List<PhoneModel> phoneModelList;
-    private String totalPrice;
+    private BigDecimal totalPrice;
     private String parcelMachineNum;
+    private boolean personalPickup;
     private String nip;
     private String clientName;
-    private String declaredShippingDate;
-    private boolean personalPickup;
+    private LocalDate declaredShippingDate;
+    private LocalDate orderSubmissionDate;
+    private Address address;
 
-    public void setOrderNumber(String orderNumber) {
-        this.orderNumber = orderNumber;
+    public Order() {}
+
+    // copy constructor
+    public Order(Order other) {
+        this.orderNumber = other.orderNumber;
+        this.paymentStatus = other.paymentStatus;
+        this.totalPrice = other.totalPrice;
+        this.parcelMachineNum = other.parcelMachineNum;
+        this.nip = other.nip;
+        this.clientName = other.clientName;
+        this.declaredShippingDate = other.declaredShippingDate;
+        this.personalPickup = other.personalPickup;
+        this.orderSubmissionDate = other.orderSubmissionDate;
+        this.phoneModelList = new ArrayList<>(other.phoneModelList);
+        this.address = new Address(other.address);
     }
 
-    public String getOrderNumber() {
-        return orderNumber;
-    }
-
-    public void setPaymentStatus(String paymentStatus) {
-        this.paymentStatus = paymentStatus;
-    }
-
-    public String getPaymentStatus() {
-        return paymentStatus;
-    }
-
-    public void setTotalPrice(String price) {
-        this.totalPrice = price;
-    }
-
-    public String getTotalPrice() {
-        return totalPrice;
-    }
-
-    public void setParcelMachineNum(String parcelMachineNum) {
-        this.parcelMachineNum = parcelMachineNum;
-    }
-
-    public String getParcelMachineNum() {
-        return parcelMachineNum;
-    }
-
-    public void setNip(String nip) {
-        this.nip = nip;
-    }
-
-    public String getNip() {
-        return nip;
-    }
-
-    public void setClientName(String clientName) {
-        this.clientName = clientName;
-    }
-
-    public String getClientName() {
-        return clientName;
-    }
-
-    public List<PhoneModel> getPhoneModelList() {
-        return phoneModelList;
-    }
-
-    public void setPhoneModelList(List<PhoneModel> phoneModelList) {
-        this.phoneModelList = phoneModelList;
-    }
-
-    public String getDeclaredShippingDate() {
-        return declaredShippingDate;
-    }
-
-    public void setDeclaredShippingDate(String shippingEstimate) {
-        this.declaredShippingDate = shippingEstimate;
-    }
-
-    public boolean isPersonalPickup() {
-        return personalPickup;
-    }
-
-    public void setPersonalPickup(boolean hasPersonalPickup) {
-        this.personalPickup = hasPersonalPickup;
-    }
 }

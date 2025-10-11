@@ -1,6 +1,6 @@
 package org.example.scraper.auth;
 
-import org.example.scraper.service.FileUtils;
+import org.example.scraper.service.utils.FileUtils;
 import org.jetbrains.annotations.NotNull;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -57,8 +57,8 @@ public class CredentialsManager {
         }
 
         JSONObject account = new JSONObject();
-        account.put("login", credentials.login);
-        account.put("password", credentials.password);
+        account.put("login", credentials.login());
+        account.put("password", credentials.password());
 
         allAccounts.put(accountKey, account);
 

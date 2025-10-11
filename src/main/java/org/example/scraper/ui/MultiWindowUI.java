@@ -14,14 +14,14 @@ import org.example.scraper.auth.Credentials;
 import org.example.scraper.ui.controllers.SessionOrchestrator;
 import org.example.scraper.ui.views.LoginView;
 import org.example.scraper.ui.views.OrdersView;
-import org.example.scraper.ui.views.ReservationView;
+import org.example.scraper.ui.views.FakturaXlView;
 import org.example.scraper.ui.views.TestView;
 
 import java.util.EnumMap;
 import java.util.Map;
 
 public class MultiWindowUI extends Application {
-    private enum ViewName { LOGIN, ORDERS, RESERVATION, TEST }
+    private enum ViewName { LOGIN, ORDERS, FAKTURAXL, TEST }
 
     private final Map<ViewName, Pane> views = new EnumMap<>(ViewName.class);
     private StackPane content;
@@ -34,13 +34,13 @@ public class MultiWindowUI extends Application {
         content.setPadding(new Insets(10));
 
         ListView<String> menu = new ListView<>();
-        menu.getItems().addAll("Login", "Orders", "Reservation", "...");
+        menu.getItems().addAll("Login", "Orders", "FakturaXL", "...");
         menu.setPrefWidth(140);
         menu.getSelectionModel().selectedIndexProperty().addListener((obs, ov, nv) -> {
             switch (nv == null ? -1 : nv.intValue()) {
                 case 0 -> switchTo(ViewName.LOGIN);
                 case 1 -> switchTo(ViewName.ORDERS);
-                case 2 -> switchTo(ViewName.RESERVATION);
+                case 2 -> switchTo(ViewName.FAKTURAXL);
                 case 3 -> switchTo(ViewName.TEST);
                 default -> switchTo(ViewName.LOGIN);
             }
@@ -126,10 +126,22 @@ public class MultiWindowUI extends Application {
                 tag -> orchestrator.applyOrderTag(tag, orders::setOutputText, this::showWarn)
         );
 
-        // Reservation view
-        final ReservationView reservation = new ReservationView();
-        reservation.bind(
-                orderId -> orchestrator.handleReservationRequest(orderId, this::showWarn)
+        // FakturaXl view
+        final FakturaXlView fakturaXlView = new FakturaXlView();
+        fakturaXlView.bind(
+                orderId -> orchestrator.collectOrderGuarded(
+                        orderId,
+                        output -> {
+                            // onOutput is called only on successful collect -> now run FakturaXL
+                            orchestrator.handleFakturaXlRequest(orderId, this::showWarn);
+                        },
+                        this::showWarn,
+                        () -> {
+                            // Inform user to complete 2FA and switch to Login
+                            switchTo(ViewName.LOGIN);
+                            showWarn("Two-factor authentication required. Enter the SMS code on the Login tab.");
+                        }
+                )
         );
 
         // Test view
@@ -137,7 +149,7 @@ public class MultiWindowUI extends Application {
 
         addView(ViewName.LOGIN, login.getRoot());
         addView(ViewName.ORDERS, orders.getRoot());
-        addView(ViewName.RESERVATION, reservation.getRoot());
+        addView(ViewName.FAKTURAXL, fakturaXlView.getRoot());
         addView(ViewName.TEST, test.getRoot());
     }
 

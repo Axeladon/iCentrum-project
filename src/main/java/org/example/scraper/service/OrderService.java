@@ -1,5 +1,6 @@
 package org.example.scraper.service;
 
+import lombok.Getter;
 import org.example.scraper.model.Order;
 import org.example.scraper.model.PhoneModel;
 
@@ -8,6 +9,7 @@ import java.util.List;
 
 public class OrderService {
 
+    @Getter
     private final Order order = new Order();
     private final OrderFetcher orderFetcher;
 
@@ -34,6 +36,6 @@ public class OrderService {
     }
 
     public void generateHtmlReport(File file) {
-        HtmlFileGenerator.generateFileReport(order, file);
+        HtmlLabelGenerator.generateFileReport(order, file);
     }
 }

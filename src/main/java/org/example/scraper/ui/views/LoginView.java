@@ -3,12 +3,14 @@ package org.example.scraper.ui.views;
 import javafx.geometry.Insets;
 import javafx.scene.control.*;
 import javafx.scene.layout.VBox;
+import lombok.Getter;
 import org.example.scraper.auth.Credentials;
 
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 public class LoginView {
+    @Getter
     private final VBox root = new VBox(10);
 
     private BiConsumer<Credentials, Boolean> onLoginRequest;
@@ -26,14 +28,14 @@ public class LoginView {
         TextField username = new TextField();
         PasswordField password = new PasswordField();
 
-        username.setText(initial == null ? "" : initial.login);
-        password.setText(initial == null ? "" : initial.password);
+        username.setText(initial == null ? "" : initial.login());
+        password.setText(initial == null ? "" : initial.password());
 
         username.setPromptText("Enter login");
         password.setPromptText("Enter password");
 
         CheckBox remember = new CheckBox("Remember me");
-        if (initial != null && !initial.login.isEmpty() && !initial.password.isEmpty()) {
+        if (initial != null && !initial.login().isEmpty() && !initial.password().isEmpty()) {
             remember.setSelected(true);
         }
 
@@ -80,9 +82,5 @@ public class LoginView {
         twoFaField.setDisable(!enabled);
         twoFaBtn.setDisable(!enabled);
         if (enabled) twoFaField.requestFocus();
-    }
-
-    public VBox getRoot() {
-        return root;
     }
 }

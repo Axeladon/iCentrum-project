@@ -11,7 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-public class HtmlFileGenerator {
+public class HtmlLabelGenerator {
 
     private static final Map<String, String> GRADE_MAP = Map.of(
             "JAK NOWY PLUS", "JNP",
@@ -29,7 +29,6 @@ public class HtmlFileGenerator {
         <meta charset="UTF-8">
         <title>Label</title>
         <style>
-          /* Ensure predictable sizing and no default printer margins */
           * { box-sizing: border-box; }
     
           /* Center the label on the page/screen */
@@ -150,8 +149,8 @@ public class HtmlFileGenerator {
         return GRADE_MAP.getOrDefault(grade == null ? "" : grade.toUpperCase(), grade);
     }
 
+    // Remove "iPhone" brand and shorten "PRO MAX" to "PM" (case-insensitive)
     private static String formatPhoneName(String fullName) {
-        // Remove "iPhone" brand and shorten "PRO MAX" to "PM" (case-insensitive)
         String nameWithoutBrand = fullName.replaceFirst("(?i)^iPhone\\s*", "").trim();
         return nameWithoutBrand.replaceAll("(?i)PRO MAX", "PM");
     }
