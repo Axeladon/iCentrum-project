@@ -3,6 +3,7 @@ package org.example.scraper.ui.controllers;
 import javafx.application.Platform;
 import javafx.concurrent.Task;
 import org.example.scraper.auth.*;
+import org.example.scraper.model.Order;
 import org.example.scraper.model.SiteId;
 import org.example.scraper.service.utils.FileUtils;
 import org.example.scraper.service.OrderFetcher;
@@ -11,6 +12,8 @@ import org.jsoup.nodes.Document;
 
 import java.awt.Desktop;
 import java.io.File;
+import java.util.Arrays;
+import java.util.List;
 import java.util.function.Consumer;
 
 public class SessionOrchestrator {
@@ -98,10 +101,7 @@ public class SessionOrchestrator {
         new Thread(task, "collect-guarded").start();
     }
 
-    public void collectAndGenerateReportGuarded(String orderId,
-                                                Consumer<String> onOutput,
-                                                Consumer<String> onError,
-                                                Runnable onTwoFaNeeded) {
+    public void collectAndGenerateReportGuarded(String orderId, Consumer<String> onOutput, Consumer<String> onError, Runnable onTwoFaNeeded) {
         if (hasInvalidOrderId(orderId, onError)) return;
 
         Task<Void> task = new Task<>() {
@@ -176,8 +176,8 @@ public class SessionOrchestrator {
             onError.accept("Order number is empty");
             return true;
         }
-        if (!orderId.matches("\\d+")) {
-            onError.accept("Order number should contain digits only");
+        if (!orderId.matches("\\d+(\\s+\\d+)*")) {
+            onError.accept("Order number should contain only digits, optionally separated by spaces");
             return true;
         }
         return false;
@@ -189,31 +189,64 @@ public class SessionOrchestrator {
         return r.getMessage() == null ? r.toString() : r.getMessage();
     }
 
-    public void handleFakturaXlRequest(String orderId,
-                                       java.util.function.Consumer<String> onError) {
-        if (orderId == null || orderId.isBlank()) {
+    public void handleFakturaXlRequest(String rawInput, Consumer<String> onError, Runnable onTwoFaNeeded) {
+
+        String trimmed = rawInput == null ? "" : rawInput.trim();
+        if (trimmed.isEmpty()) {
             onError.accept("Order number is empty");
             return;
         }
-        if (!orderId.matches("\\d+")) {
-            onError.accept("Order number should contain digits only");
+
+        List<String> orderIds = Arrays.stream(trimmed.split("\\s+"))
+                .filter(s -> !s.isBlank())
+                .toList();
+
+        if (orderIds.isEmpty()) {
+            onError.accept("No valid order numbers found");
             return;
         }
 
-        try {
-            FakturaXLSession fakturaXlSession = new FakturaXLSession("TOKEN!!!");
+        new Thread(() -> {
+            for (String orderId : orderIds) {
+                try {
+                    // access check
+                    AccessStatus status = probeAccess(orderId);
+                    if (status == AccessStatus.LOGIN_REQUIRED) {
+                        ensureHaveCredentials();
+                        session.login(shoperCredentials.login(), shoperCredentials.password());
+                        status = probeAccess(orderId);
+                    }
 
-            // Create invoices and get human-friendly identifiers (e.g., "FV 76/5/2025" or "ID: 1460568").
-            java.util.List<String> ids =
-                    fakturaXlSession.createMarginAndVatInvoice(orderService.getOrder(), orderId);
+                    if (status == AccessStatus.TWO_FACTOR_REQUIRED) {
+                        Platform.runLater(onTwoFaNeeded);
+                        return; // exit, waiting for 2FA
+                    }
 
-            onError.accept(buildFakturaMessage(ids));
-        } catch (Exception e) {
-            onError.accept("Failed to create invoices: " + e.getMessage());
-        }
+                    if (status != AccessStatus.SUCCESS) {
+                        final AccessStatus finalStatus = status;
+                        Platform.runLater(() -> onError.accept("[" + orderId + "] Access denied: " + finalStatus));
+                        continue;
+                    }
+
+                    // order data collection
+                    orderService.fetchAndGetOrderInfo(orderId);
+                    Order order = orderService.getOrder();
+
+                    FakturaXLSession fakturaXlSession = new FakturaXLSession("TOKEN");
+
+                    List<String> ids = fakturaXlSession.createMarginAndVatInvoice(order, orderId);
+                    Platform.runLater(() -> onError.accept(buildFakturaMessage(ids)));
+
+                } catch (Exception e) {
+                    Platform.runLater(() ->
+                            onError.accept("[" + orderId + "] Failed: " + rootMessage(e)));
+                    // continue with the next order if one fails
+                }
+            }
+        }, "faktura-batch").start();
     }
 
-    private String buildFakturaMessage(java.util.List<String> ids) {
+    private String buildFakturaMessage(List<String> ids) {
         if (ids == null || ids.isEmpty()) {
             return "Nie udało się odczytać numeru dokumentu.";
         }

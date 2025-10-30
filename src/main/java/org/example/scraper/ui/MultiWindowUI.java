@@ -129,15 +129,10 @@ public class MultiWindowUI extends Application {
         // FakturaXl view
         final FakturaXlView fakturaXlView = new FakturaXlView();
         fakturaXlView.bind(
-                orderId -> orchestrator.collectOrderGuarded(
-                        orderId,
-                        output -> {
-                            // onOutput is called only on successful collect -> now run FakturaXL
-                            orchestrator.handleFakturaXlRequest(orderId, this::showWarn);
-                        },
-                        this::showWarn,
-                        () -> {
-                            // Inform user to complete 2FA and switch to Login
+                rawInput -> orchestrator.handleFakturaXlRequest(
+                        rawInput,          // передаём как есть: "123123  123234 123456"
+                        this::showWarn,    // comment: use existing warning mechanism to show messages (success/error)
+                        () -> {            // comment: if 2FA is needed during processing, switch to Login tab
                             switchTo(ViewName.LOGIN);
                             showWarn("Two-factor authentication required. Enter the SMS code on the Login tab.");
                         }

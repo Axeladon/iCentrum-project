@@ -70,9 +70,7 @@ public class LoginView {
         root.getChildren().addAll(title, username, password, remember, loginBtn, twoFaField, twoFaBtn);
     }
 
-    public void bind(BiConsumer<Credentials, Boolean> onLoginRequest,
-                     Consumer<String> on2faSubmit,
-                     Consumer<String> onError) {
+    public void bind(BiConsumer<Credentials, Boolean> onLoginRequest, Consumer<String> on2faSubmit, Consumer<String> onError) {
         this.onLoginRequest = onLoginRequest;
         this.on2faSubmit = on2faSubmit;
         this.onError = onError;

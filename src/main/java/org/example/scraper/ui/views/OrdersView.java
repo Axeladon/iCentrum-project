@@ -68,10 +68,7 @@ public class OrdersView {
         root.getChildren().addAll(input, row, output, abc);
     }
 
-    public void bind(Consumer<String> onCollect,
-                     Consumer<String> onGenerateReport,
-                     Consumer<String> onError,
-                     Consumer<String> onTag) {
+    public void bind(Consumer<String> onCollect, Consumer<String> onGenerateReport, Consumer<String> onError, Consumer<String> onTag) {
         this.onCollect = onCollect;
         this.onGenerateReport = onGenerateReport;
         this.onError = onError;
