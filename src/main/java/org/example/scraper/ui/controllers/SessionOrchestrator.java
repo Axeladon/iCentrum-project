@@ -5,6 +5,7 @@ import javafx.concurrent.Task;
 import org.example.scraper.auth.*;
 import org.example.scraper.model.Order;
 import org.example.scraper.model.SiteId;
+import org.example.scraper.service.ShoperCommentsWriter;
 import org.example.scraper.service.utils.FileUtils;
 import org.example.scraper.service.OrderFetcher;
 import org.example.scraper.service.OrderService;
@@ -17,6 +18,8 @@ import java.util.List;
 import java.util.function.Consumer;
 
 public class SessionOrchestrator {
+    FakturaXLSession fakturaXlSession = new FakturaXLSession("TOKEN");
+
     private static final String ORDER_PAGE_URL_PREFIX = "https://applecentrum-612788.shoparena.pl/admin/orders/view/id/";
     private static final String DEFAULT_PROBE_ORDER_ID = "123456";
     private static final String TWO_FA_URL = "https://applecentrum-612788.shoparena.pl/admin/auth/totp-sms";
@@ -201,11 +204,6 @@ public class SessionOrchestrator {
                 .filter(s -> !s.isBlank())
                 .toList();
 
-        if (orderIds.isEmpty()) {
-            onError.accept("No valid order numbers found");
-            return;
-        }
-
         new Thread(() -> {
             for (String orderId : orderIds) {
                 try {
@@ -232,10 +230,10 @@ public class SessionOrchestrator {
                     orderService.fetchAndGetOrderInfo(orderId);
                     Order order = orderService.getOrder();
 
-                    FakturaXLSession fakturaXlSession = new FakturaXLSession("TOKEN");
-
                     List<String> ids = fakturaXlSession.createMarginAndVatInvoice(order, orderId);
                     Platform.runLater(() -> onError.accept(buildFakturaMessage(ids)));
+
+                    ShoperCommentsWriter.addPrivateOrderNote(orderId, "Trzeba wystawic FK");
 
                 } catch (Exception e) {
                     Platform.runLater(() ->

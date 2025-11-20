@@ -11,7 +11,7 @@ import java.util.Map;
 public class SessionManager {
     private static volatile SessionManager instance;
 
-    private final CookieManager cookieManager = new CookieManager();
+    private final CookieManager cookieManager = CookieManager.getInstance();
     private static final String DEFAULT_ORDER_NUMBER = "123456";
     private static final String ORDER_PAGE_URL_PREFIX = "https://applecentrum-612788.shoparena.pl/admin/orders/view/id/";
     private static final String LOGIN_URL = "https://applecentrum-612788.shoparena.pl/admin/auth/login";

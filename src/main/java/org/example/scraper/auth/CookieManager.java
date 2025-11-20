@@ -7,14 +7,20 @@ import org.example.scraper.model.SiteId;
 import java.io.*;
 import java.util.*;
 
-public class CookieManager {
+public final class CookieManager {
+    private static final CookieManager INSTANCE = new CookieManager();
+
     private final Map<SiteId, Map<String, String>> stores = new EnumMap<>(SiteId.class);
 
-    public CookieManager() {
+    private CookieManager() {
         loadFromFile();
     }
 
-    public void update(SiteId siteId, Map<String, String> newCookies) {
+    public static CookieManager getInstance() {
+        return INSTANCE;
+    }
+
+    public synchronized void update(SiteId siteId, Map<String, String> newCookies) {
         Map<String, String> existingCookies = stores.get(siteId);
         if (existingCookies == null) {
             stores.put(siteId, new HashMap<>(newCookies));
@@ -30,14 +36,13 @@ public class CookieManager {
         }
     }
 
-    public Map<String, String> getAll(SiteId siteId) {
+    public synchronized Map<String, String> getAll(SiteId siteId) {
         Map<String, String> cookies = stores.get(siteId);
-        return (cookies == null) ? Collections.emptyMap() : cookies;
+        return (cookies == null) ? Collections.emptyMap() : new HashMap<>(cookies);
     }
 
     private void saveToFile() throws IOException {
         ObjectMapper mapper = new ObjectMapper();
-
         mapper.writerWithDefaultPrettyPrinter()
                 .writeValue(new File("data_toolkit/cookie_store.json"), stores);
     }
