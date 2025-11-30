@@ -13,21 +13,25 @@
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
+    <!-- Java -->
     <maven.compiler.source>17</maven.compiler.source>
     <maven.compiler.target>17</maven.compiler.target>
 
-    <!-- Use the same JavaFX LTS as your code -->
-    <javafx.version>17.0.6</javafx.version>
-
-    <!-- Will be set by profiles below: win / mac / mac-aarch64 / linux -->
+    <!-- JavaFX -->
+    <javafx.version>17.0.13</javafx.version>
     <javafx.platform>mac-aarch64</javafx.platform>
 
-    <!-- Fully-qualified main class -->
-    <main.class>org.example.scraper.ui.MultiWindowUI</main.class>
+    <!-- Main class -->
+    <main.class>org.example.scraper.main.Main</main.class>
+
+    <!-- Plugin versions -->
+    <maven.compiler.plugin.version>3.13.0</maven.compiler.plugin.version>
+    <maven.shade.plugin.version>3.5.0</maven.shade.plugin.version>
   </properties>
 
   <dependencies>
-    <!-- Lombok (provided so it isn't packaged into runtime unnecessarily) -->
+    <!-- Lombok (build-time only, not included at runtime) -->
     <dependency>
       <groupId>org.projectlombok</groupId>
       <artifactId>lombok</artifactId>
@@ -35,7 +39,7 @@
       <scope>provided</scope>
     </dependency>
 
-    <!-- JavaFX runtime modules; platform-specific classifier is critical on macOS -->
+    <!-- JavaFX -->
     <dependency>
       <groupId>org.openjfx</groupId>
       <artifactId>javafx-controls</artifactId>
@@ -61,135 +65,97 @@
       <classifier>${javafx.platform}</classifier>
     </dependency>
 
-    <!-- Your other libs -->
-    <dependency>
-      <groupId>org.json</groupId>
-      <artifactId>json</artifactId>
-      <version>20250517</version>
-    </dependency>
+    <!-- HTML parser -->
     <dependency>
       <groupId>org.jsoup</groupId>
       <artifactId>jsoup</artifactId>
-      <version>1.18.3</version>
+      <version>1.21.2</version>
     </dependency>
+
+    <!-- Gson (latest stable, 2.13.2) -->
+    <dependency>
+      <groupId>com.google.code.gson</groupId>
+      <artifactId>gson</artifactId>
+      <version>2.13.2</version>
+    </dependency>
+
+    <!-- Jackson Databind (current 2.20.x branch) -->
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <version>2.20.1</version>
+    </dependency>
+
+    <!-- Optional org.json if you actually use it -->
+    <dependency>
+      <groupId>org.json</groupId>
+      <artifactId>json</artifactId>
+      <version>20240303</version>
+    </dependency>
+
     <dependency>
       <groupId>org.jetbrains</groupId>
       <artifactId>annotations</artifactId>
       <version>24.1.0</version>
       <scope>compile</scope>
     </dependency>
+
+    <!-- RichTextFX -->
     <dependency>
-      <groupId>com.fasterxml.jackson.core</groupId>
-      <artifactId>jackson-databind</artifactId>
-      <version>2.17.0</version>
+      <groupId>org.fxmisc.richtext</groupId>
+      <artifactId>richtextfx</artifactId>
+      <version>0.11.0</version>
     </dependency>
 
-    <!-- JUnit -->
+    <!-- JUnit 5 (current 5.14.x) -->
     <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter-api</artifactId>
-      <version>5.10.2</version>
+      <version>5.14.1</version>
       <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter-engine</artifactId>
-      <version>5.10.2</version>
+      <version>5.14.1</version>
       <scope>test</scope>
     </dependency>
   </dependencies>
 
   <build>
     <plugins>
-      <!-- Java compiler -->
+      <!-- Compiler + Lombok as annotation processor -->
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-compiler-plugin</artifactId>
-        <version>3.11.0</version>
+        <version>${maven.compiler.plugin.version}</version>
         <configuration>
-          <release>17</release>
+          <source>${maven.compiler.source}</source>
+          <target>${maven.compiler.target}</target>
+          <annotationProcessorPaths>
+            <path>
+              <groupId>org.projectlombok</groupId>
+              <artifactId>lombok</artifactId>
+              <version>1.18.42</version>
+            </path>
+          </annotationProcessorPaths>
         </configuration>
       </plugin>
 
-      <!-- JavaFX Maven plugin: only run + jlink -->
-      <plugin>
-        <groupId>org.openjfx</groupId>
-        <artifactId>javafx-maven-plugin</artifactId>
-        <version>0.0.8</version>
-        <configuration>
-          <!-- Main class (FQN) -->
-          <mainClass>org.example.scraper.ui.MultiWindowUI</mainClass>
-
-          <!-- jlink options (valid for 0.0.8) -->
-          <!-- Name of the runtime image directory under target/ -->
-          <jlinkImageName>demo2-runtime</jlinkImageName>
-          <!-- If set, a ZIP of the image will be created with this name -->
-          <jlinkZipName>demo2-runtime</jlinkZipName>
-
-          <!-- Optional jlink tunings -->
-          <stripDebug>true</stripDebug>
-          <noHeaderFiles>true</noHeaderFiles>
-          <noManPages>true</noManPages>
-          <compress>2</compress>
-
-          <!-- Optional launcher script name inside the image -->
-          <launcher>demo2</launcher>
-        </configuration>
-      </plugin>
-
-      <!-- jpackage Maven plugin: builds .app / .dmg on macOS -->
-      <plugin>
-        <groupId>org.panteleyev</groupId>
-        <artifactId>jpackage-maven-plugin</artifactId>
-        <version>1.7.1</version>
-        <executions>
-          <execution>
-            <goals>
-              <goal>jpackage</goal>
-            </goals>
-          </execution>
-        </executions>
-        <configuration>
-          <!-- App metadata -->
-          <name>demo2</name>
-          <appVersion>${project.version}</appVersion>
-          <vendor>Org Example</vendor>
-
-          <!-- Use the jlink image produced by javafx:jlink -->
-          <runtimeImage>${project.build.directory}/demo2-runtime</runtimeImage>
-
-          <!-- Where to place output -->
-          <destination>${project.build.directory}/jpackage</destination>
-
-          <!-- Choose installer image type on macOS: dmg or pkg -->
-          <type>dmg</type>
-
-          <!-- If your shaded JAR has Main-Class in MANIFEST, you can use main-jar -->
-          <input>${project.build.directory}</input>
-          <mainJar>${project.build.finalName}.jar</mainJar>
-
-          <!-- Optional: app icon (put your .icns here) -->
-          <icon>src/main/deploy/package/icon.icns</icon>
-
-          <!-- Optional macOS bits -->
-          <macPackageIdentifier>org.example.demo2</macPackageIdentifier>
-        </configuration>
-      </plugin>
-
-      <!-- Shade plugin (optional): produce a normal fat JAR for dev use.
-           Production launchers should use jlink/jpackage outputs instead. -->
+      <!-- A proper fat-jar -->
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-shade-plugin</artifactId>
-        <version>3.5.0</version>
+        <version>${maven.shade.plugin.version}</version>
         <executions>
           <execution>
             <phase>package</phase>
-            <goals><goal>shade</goal></goals>
+            <goals>
+              <goal>shade</goal>
+            </goals>
             <configuration>
               <createDependencyReducedPom>true</createDependencyReducedPom>
               <transformers>
-                <!-- Put Main-Class into MANIFEST for 'java -jar' -->
                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                   <mainClass>${main.class}</mainClass>
                 </transformer>
@@ -201,12 +167,11 @@
     </plugins>
   </build>
 
-  <!-- OS-specific profiles to set the correct JavaFX classifier -->
+  <!-- Profiles for different OS -->
   <profiles>
     <profile>
       <id>mac-aarch64</id>
       <activation>
-        <!-- Activated on Apple Silicon -->
         <os><family>mac</family></os>
         <property>
           <name>os.arch</name>
@@ -218,7 +183,6 @@
     <profile>
       <id>mac</id>
       <activation>
-        <!-- Activated on macOS Intel -->
         <os><family>mac</family></os>
         <property>
           <name>os.arch</name>
@@ -250,4 +214,5 @@
       </properties>
     </profile>
   </profiles>
+
 </project>

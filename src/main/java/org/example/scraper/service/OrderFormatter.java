@@ -2,7 +2,7 @@ package org.example.scraper.service;
 
 import org.example.scraper.model.Order;
 import org.example.scraper.model.PhoneModel;
-import org.example.scraper.util.PriceUtils;
+import org.example.scraper.service.utils.PriceUtils;
 
 import java.math.BigDecimal;
 import java.util.List;

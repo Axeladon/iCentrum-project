@@ -4,7 +4,7 @@ import org.example.scraper.auth.SessionManager;
 import org.example.scraper.model.Address;
 import org.example.scraper.model.Order;
 import org.example.scraper.model.PhoneModel;
-import org.example.scraper.util.PriceUtils;
+import org.example.scraper.service.utils.PriceUtils;
 import org.example.scraper.service.utils.PolishDateUtil;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;

@@ -3,11 +3,14 @@ module org.example.scraper {
     requires javafx.fxml;
     requires org.jsoup;
     requires org.json;
-    requires org.jetbrains.annotations;
     requires com.fasterxml.jackson.databind;
     requires java.desktop;
     requires java.net.http;
-    requires static lombok; // Needed for java.awt.Desktop
+    requires static lombok;
+    requires java.prefs;
+    requires com.google.gson;
+    requires org.fxmisc.richtext;
+    requires org.jetbrains.annotations;   // ⬅️ ОЦЕ ДОДАТИ
 
     exports org.example.scraper.model;
     opens org.example.scraper.model to javafx.fxml;

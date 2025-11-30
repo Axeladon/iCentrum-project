@@ -1,4 +1,4 @@
-package org.example.scraper.util;
+package org.example.scraper.service.utils;
 
 import java.math.BigDecimal;
 

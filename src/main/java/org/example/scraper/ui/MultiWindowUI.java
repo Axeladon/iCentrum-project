@@ -11,17 +11,16 @@ import javafx.scene.layout.Pane;
 import javafx.scene.layout.StackPane;
 import javafx.stage.Stage;
 import org.example.scraper.auth.Credentials;
+import org.example.scraper.service.settings.SettingsService;
 import org.example.scraper.ui.controllers.SessionOrchestrator;
-import org.example.scraper.ui.views.LoginView;
-import org.example.scraper.ui.views.OrdersView;
-import org.example.scraper.ui.views.FakturaXlView;
-import org.example.scraper.ui.views.TestView;
+import org.example.scraper.ui.views.*;
 
 import java.util.EnumMap;
 import java.util.Map;
 
 public class MultiWindowUI extends Application {
-    private enum ViewName { LOGIN, ORDERS, FAKTURAXL, TEST }
+
+    private enum ViewName { LOGIN, ORDERS, FAKTURAXL, THREEUTOOLS, TEST }
 
     private final Map<ViewName, Pane> views = new EnumMap<>(ViewName.class);
     private StackPane content;
@@ -33,31 +32,52 @@ public class MultiWindowUI extends Application {
         content = new StackPane();
         content.setPadding(new Insets(10));
 
+        // --- LEFT MENU ---
         ListView<String> menu = new ListView<>();
-        menu.getItems().addAll("Login", "Orders", "FakturaXL", "...");
+        menu.getItems().addAll("Login", "Orders", "FakturaXL", "3uTools", "...");
         menu.setPrefWidth(140);
+
+        // Listener that reacts to menu selection
         menu.getSelectionModel().selectedIndexProperty().addListener((obs, ov, nv) -> {
-            switch (nv == null ? -1 : nv.intValue()) {
+            int index = (nv == null) ? 0 : nv.intValue();
+
+            // Save selected menu index to preferences
+            SettingsService.saveInt("selectedMenuIndex", index);
+
+            // Switch to proper view
+            switch (index) {
                 case 0 -> switchTo(ViewName.LOGIN);
                 case 1 -> switchTo(ViewName.ORDERS);
                 case 2 -> switchTo(ViewName.FAKTURAXL);
-                case 3 -> switchTo(ViewName.TEST);
+                case 3 -> switchTo(ViewName.THREEUTOOLS);
+                case 4 -> switchTo(ViewName.TEST);
                 default -> switchTo(ViewName.LOGIN);
             }
         });
 
+        // Build all views (panes)
         buildViews();
 
         root.setLeft(menu);
         root.setCenter(content);
 
         Scene scene = new Scene(root, 800, 520);
-        primaryStage.setTitle("Shoper scraping");
+        primaryStage.setTitle("iCentrum Order & Device Manager");
         primaryStage.setScene(scene);
         primaryStage.show();
 
-        menu.getSelectionModel().select(0);
-        switchTo(ViewName.LOGIN);
+        // ---- RESTORE LAST SELECTED MENU ITEM ----
+        int savedIndex = SettingsService.loadInt("selectedMenuIndex", 0);
+        menu.getSelectionModel().select(savedIndex);
+
+        switch (savedIndex) {
+            case 0 -> switchTo(ViewName.LOGIN);
+            case 1 -> switchTo(ViewName.ORDERS);
+            case 2 -> switchTo(ViewName.FAKTURAXL);
+            case 3 -> switchTo(ViewName.THREEUTOOLS);
+            case 4 -> switchTo(ViewName.TEST);
+            default -> switchTo(ViewName.LOGIN);
+        }
     }
 
     private void buildViews() {
@@ -86,7 +106,8 @@ public class MultiWindowUI extends Application {
                         status -> {
                             switch (status) {
                                 case SUCCESS -> switchTo(ViewName.ORDERS);
-                                case TWO_FACTOR_REQUIRED -> showWarn("2FA still required. Check the code and try again.");
+                                case TWO_FACTOR_REQUIRED ->
+                                        showWarn("2FA still required. Check the code and try again.");
                                 default -> showWarn("Unexpected status after 2FA: " + status);
                             }
                         },
@@ -126,29 +147,35 @@ public class MultiWindowUI extends Application {
                 tag -> orchestrator.applyOrderTag(tag, orders::setOutputText, this::showWarn)
         );
 
-        // FakturaXl view
+        // FakturaXL view
         final FakturaXlView fakturaXlView = new FakturaXlView();
         fakturaXlView.bind(
                 rawInput -> orchestrator.handleFakturaXlRequest(
-                        rawInput,          // передаём как есть: "123123  123234 123456"
-                        this::showWarn,    // comment: use existing warning mechanism to show messages (success/error)
-                        () -> {            // comment: if 2FA is needed during processing, switch to Login tab
+                        rawInput,          // we pass it as is: "123123  123234 123456"
+                        this::showWarn,    // use existing warning mechanism to show messages (success/error)
+                        () -> {            // if 2FA is needed during processing, switch to Login tab
                             switchTo(ViewName.LOGIN);
                             showWarn("Two-factor authentication required. Enter the SMS code on the Login tab.");
                         }
                 )
         );
 
+        // 3uTools view
+        final ThreeUToolsView threeUToolsView = new ThreeUToolsView();
+
         // Test view
         final TestView test = new TestView();
 
+        // Register all views
         addView(ViewName.LOGIN, login.getRoot());
         addView(ViewName.ORDERS, orders.getRoot());
         addView(ViewName.FAKTURAXL, fakturaXlView.getRoot());
+        addView(ViewName.THREEUTOOLS, threeUToolsView.getRoot());
         addView(ViewName.TEST, test.getRoot());
     }
 
     private void addView(ViewName name, Pane pane) {
+        // Hide pane when not visible (managed binding is important for layout)
         pane.managedProperty().bind(pane.visibleProperty());
         pane.setVisible(false);
         views.put(name, pane);
@@ -156,6 +183,7 @@ public class MultiWindowUI extends Application {
     }
 
     private void switchTo(ViewName name) {
+        // Hide all views except the requested one
         views.values().forEach(p -> p.setVisible(false));
         views.getOrDefault(name, views.get(ViewName.LOGIN)).setVisible(true);
     }
