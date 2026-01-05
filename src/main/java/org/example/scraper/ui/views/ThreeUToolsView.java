@@ -5,6 +5,10 @@ import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
+import javafx.scene.control.Button;
+import javafx.scene.control.Label;
+import javafx.scene.control.TextArea;
+import javafx.scene.control.TextField;
 import javafx.scene.layout.*;
 import javafx.stage.DirectoryChooser;
 import javafx.stage.Window;
@@ -14,6 +18,7 @@ import org.example.scraper.model.CrmProblem;
 import org.example.scraper.service.CrmDeviceSender;
 import org.example.scraper.service.ThreeUToolsService;
 import org.example.scraper.service.settings.SettingsService;
+import org.example.scraper.service.utils.BrowserUtils;
 
 import java.io.File;
 import java.net.http.HttpResponse;
@@ -44,7 +49,7 @@ public class ThreeUToolsView {
     private final Spinner<Integer> memorySpinner = new Spinner<>();
     private final ComboBox<String> gradeCombo = new ComboBox<>();
     private final Spinner<Integer> batterySpinner =
-            new Spinner<>(new SpinnerValueFactory.IntegerSpinnerValueFactory(80, 100, 100));
+            new Spinner<>(new SpinnerValueFactory.IntegerSpinnerValueFactory(79, 100, 100));
 
     private final CheckBox uncheckedCheckBox = new CheckBox("Unchecked");
     private final CheckBox phoneboxCheckBox = new CheckBox("Box");
@@ -59,13 +64,20 @@ public class ThreeUToolsView {
     private final TextField phpSessField = new TextField();
     private final TextField hashField = new TextField();
 
-    // Comment area (multi-line)
+    // Comment area
     private final TextArea commentArea = new TextArea();
+
+    // ⬅ Новый элемент — RadioButton для Comment
+    private final RadioButton ceMarkRadioButton = new RadioButton();
 
     private final Label crmPhoneStatus = new Label("");
 
     @Getter
     private final VBox root = new VBox(10);
+
+    // ======================================================================================
+    // CONSTRUCTOR
+    // ======================================================================================
 
     public ThreeUToolsView() {
 
@@ -78,11 +90,12 @@ public class ThreeUToolsView {
         Button loadToCrmBtn = new Button("Load to CRM");
         loadToCrmBtn.setMaxWidth(Double.MAX_VALUE);
 
-        // Comment area setup
+        // Comment area
         commentArea.setPromptText("Comment");
         commentArea.setWrapText(true);
         commentArea.setPrefRowCount(4);
         commentArea.setMaxWidth(Double.MAX_VALUE);
+        commentArea.setText("CE\n");
 
         UnaryOperator<TextFormatter.Change> digitsFilter = change -> {
             if (change.getControlNewText().matches("\\d*")) {
@@ -116,24 +129,18 @@ public class ThreeUToolsView {
         batterySpinner.setPrefWidth(70);
         batterySpinner.getEditor().setTextFormatter(new TextFormatter<>(digitsFilter));
 
-        // ======== COOKIES ROW (TOP) ========
+        // ======== COOKIES ========
         Label phpLabel = new Label("PHPSESSID:");
         phpSessField.setPrefWidth(220);
 
         Label hashLabel = new Label("hash:");
         hashField.setPrefWidth(220);
 
-        // Load saved cookies on startup
         String savedPhp = SettingsService.loadString(KEY_PHPSESSID, "");
         String savedHash = SettingsService.loadString(KEY_HASH, "");
-        if (savedPhp != null) {
-            phpSessField.setText(savedPhp);
-        }
-        if (savedHash != null) {
-            hashField.setText(savedHash);
-        }
+        if (savedPhp != null) phpSessField.setText(savedPhp);
+        if (savedHash != null) hashField.setText(savedHash);
 
-        // Autosave cookies when changed
         phpSessField.textProperty().addListener((obs, oldV, newV) ->
                 SettingsService.saveString(KEY_PHPSESSID, newV != null ? newV.trim() : "")
         );
@@ -141,19 +148,14 @@ public class ThreeUToolsView {
                 SettingsService.saveString(KEY_HASH, newV != null ? newV.trim() : "")
         );
 
-        HBox cookiesRow = new HBox(10);
+        HBox cookiesRow = new HBox(10, phpLabel, phpSessField, hashLabel, hashField);
         cookiesRow.setAlignment(Pos.CENTER_LEFT);
-        cookiesRow.getChildren().addAll(
-                phpLabel, phpSessField,
-                hashLabel, hashField
-        );
 
         // ======== FOLDER ROW ========
         HBox folderRow = new HBox(10);
         folderRow.setAlignment(Pos.CENTER_LEFT);
         folderRow.getChildren().addAll(chooseBtn, status);
 
-        // Restore last selected folder
         String lastFolderPath = SettingsService.loadString(KEY_FOLDER, null);
         if (lastFolderPath != null) {
             try {
@@ -165,41 +167,24 @@ public class ThreeUToolsView {
             } catch (Exception ignored) {}
         }
 
-        // Parameters row (memory, grade, battery, checkboxes)
+        // ======== PARAMS ========
         Label memoryLabel = new Label("Memory:");
         Label gradeLabel = new Label("Grade:");
         Label batteryLabel = new Label("Battery (%):");
 
-        HBox leftParams = new HBox(10);
+        HBox leftParams = new HBox(10, memoryLabel, memorySpinner, gradeLabel, gradeCombo, batteryLabel, batterySpinner);
         leftParams.setAlignment(Pos.CENTER_LEFT);
-        leftParams.getChildren().addAll(
-                memoryLabel, memorySpinner,
-                gradeLabel, gradeCombo,
-                batteryLabel, batterySpinner
-        );
 
-        uncheckedCheckBox.setAlignment(Pos.CENTER_LEFT);
-        phoneboxCheckBox.setAlignment(Pos.CENTER_LEFT);
-
-        HBox rightParams = new HBox(10);
+        HBox rightParams = new HBox(10, uncheckedCheckBox, phoneboxCheckBox);
         rightParams.setAlignment(Pos.CENTER_RIGHT);
-        rightParams.getChildren().addAll(
-                uncheckedCheckBox,
-                phoneboxCheckBox
-        );
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        HBox paramsRow = new HBox(10);
+        HBox paramsRow = new HBox(10, leftParams, spacer, rightParams);
         paramsRow.setAlignment(Pos.CENTER_LEFT);
-        paramsRow.getChildren().addAll(
-                leftParams,
-                spacer,
-                rightParams
-        );
 
-        // Period row setup
+        // ======== PERIOD ========
         DateTimeFormatter ymFormatter = DateTimeFormatter.ofPattern("yyyy-MM");
         YearMonth now = YearMonth.now();
         for (int i = 0; i < 3; i++) {
@@ -211,24 +196,19 @@ public class ThreeUToolsView {
         invoiceField.setPromptText("Invoice");
         invoiceField.setPrefWidth(120);
 
-        HBox periodRow = new HBox(10);
+        HBox periodRow = new HBox(10, new Label("Period:"), periodCombo, new Label("Invoice:"), invoiceField);
         periodRow.setAlignment(Pos.CENTER_LEFT);
-        periodRow.getChildren().addAll(
-                new Label("Period:"), periodCombo,
-                new Label("Invoice:"), invoiceField
-        );
 
-        // Source + Price row
+        // ======== SOURCE / PRICE ========
         Label sourceLabel = new Label("Source:");
         Label plnLabel = new Label("PLN:");
         Label eurLabel = new Label("EUR:");
 
         sourceCombo.getItems().addAll(
                 "Skup na miejscu", "Skup wysyłkowy", "iCentrumSklep.pl", "Second",
-                "Ad&Win", "LikeNew", "Mobilki", "WELBACK (TWIST)", "Twist", "Partly"
+                "Ad&Win", "LikeNew", "Mobilki", "WELBACK (TWIST)", "Twist", "Partly", "Star trade", "M.P. DYSTRYBUCJA"
         );
         sourceCombo.setPrefWidth(250);
-        sourceCombo.setVisibleRowCount(10);
 
         String lastSource = SettingsService.loadString(KEY_SOURCE, null);
         if (lastSource != null && sourceCombo.getItems().contains(lastSource)) {
@@ -237,9 +217,7 @@ public class ThreeUToolsView {
 
         sourceCombo.setOnAction(e -> {
             String val = sourceCombo.getValue();
-            if (val != null && !val.isBlank()) {
-                SettingsService.saveString(KEY_SOURCE, val);
-            }
+            if (val != null && !val.isBlank()) SettingsService.saveString(KEY_SOURCE, val);
         });
 
         pricePlnField.setPrefWidth(80);
@@ -250,18 +228,23 @@ public class ThreeUToolsView {
         priceEurField.setTextFormatter(new TextFormatter<>(decimalFilter));
         priceEurField.setPromptText("0.00");
 
-        HBox sourceRow = new HBox(10);
-        sourceRow.setAlignment(Pos.CENTER_LEFT);
-        sourceRow.getChildren().addAll(
+        HBox sourceRow = new HBox(10,
                 sourceLabel, sourceCombo,
                 plnLabel, pricePlnField,
                 eurLabel, priceEurField
         );
+        sourceRow.setAlignment(Pos.CENTER_LEFT);
 
-        // Problems grid
+        // ======== PROBLEMS GRID ========
         GridPane problemsGrid = createProblemsGrid();
 
-        // Folder selection handler
+        // ======== COMMENT HEADER (RadioButton + label) ========
+        Label commentLabel = new Label("CE");
+        HBox commentHeader = new HBox(6, ceMarkRadioButton, commentLabel);
+        commentHeader.setAlignment(Pos.CENTER_LEFT);
+        ceMarkRadioButton.setSelected(true);
+
+        // ======== FOLDER SELECT HANDLER ========
         chooseBtn.setOnAction(e -> {
             Window window = root.getScene() != null ? root.getScene().getWindow() : null;
 
@@ -288,7 +271,15 @@ public class ThreeUToolsView {
             } catch (Exception ignored) {}
         });
 
-        // CRM button handler
+        ceMarkRadioButton.selectedProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal) {
+                commentArea.setText("CE");
+            } else {
+                commentArea.setText("-CE-");
+            }
+        });
+
+        // ======== LOAD TO CRM ========
         loadToCrmBtn.setOnAction(e -> {
 
             if (selectedDirectory == null) {
@@ -359,7 +350,15 @@ public class ThreeUToolsView {
 
                 String comment = commentArea.getText();
                 if (comment == null) comment = "";
-                crmDevice.setComment(comment.trim());
+                comment = comment.trim();
+
+                // replace -CE- with <strike>CE</strike>
+                if (comment.contains("-CE-")) {
+                    comment = comment.replace("-CE-", "<strike>CE</strike>");
+                }
+
+                crmDevice.setComment(comment);
+                crmDevice.setCeCertificationMark(ceMarkRadioButton.isSelected());
 
                 List<Integer> problems = problemCheckBoxes.entrySet().stream()
                         .filter(entry -> entry.getValue().isSelected())
@@ -373,22 +372,25 @@ public class ThreeUToolsView {
                 String statusMessage = client.extractAlertMessage(html);
                 crmPhoneStatus.setText(statusMessage);
 
-                // Change style depending on alert type
                 if (html.contains("alert-success")) {
                     crmPhoneStatus.setStyle("-fx-font-size: 14px; -fx-text-fill: green;");
-
-                    // On success, clear form
-                    problemCheckBoxes.values().forEach(cb -> cb.setSelected(false));
-                    commentArea.clear();
                 } else if (html.contains("alert-warning")) {
                     crmPhoneStatus.setStyle("-fx-font-size: 14px; -fx-text-fill: orange;");
                 } else {
                     crmPhoneStatus.setStyle("-fx-font-size: 14px; -fx-text-fill: #1a73e8;");
                 }
 
-                // Clear selected problems after successful send
+                // Resetting the problem checkboxes
                 problemCheckBoxes.values().forEach(cb -> cb.setSelected(false));
-                commentArea.clear(); // Clear comment field
+
+                // rewriting the comment based on the selected radioButton
+                if (ceMarkRadioButton.isSelected()) {
+                    commentArea.setText("CE");
+                } else {
+                    commentArea.setText("-CE-");
+                }
+
+                BrowserUtils.openImeiLabel(crmDevice.getImei());
 
             } catch (Exception ex) {
                 ex.printStackTrace();
@@ -396,7 +398,9 @@ public class ThreeUToolsView {
             }
         });
 
+        // ======================================================================================
         // FINAL UI ORDER
+        // ======================================================================================
         root.getChildren().addAll(
                 cookiesRow,
                 folderRow,
@@ -404,14 +408,14 @@ public class ThreeUToolsView {
                 periodRow,
                 sourceRow,
                 problemsGrid,
-                new Label("Comment:"),
+                commentHeader,   // <-- RadioButton + "Comment"
                 commentArea,
                 loadToCrmBtn,
                 createCrmPhoneStatusArea()
         );
-
     }
 
+    // ======================================================================================
     private HBox createCrmPhoneStatusArea() {
         HBox box = new HBox();
         box.setAlignment(Pos.CENTER);

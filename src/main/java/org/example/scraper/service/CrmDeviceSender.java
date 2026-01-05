@@ -9,6 +9,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -20,6 +21,7 @@ public class CrmDeviceSender {
     private final HttpClient client = HttpClient.newHttpClient();
 
     private boolean ecidProblem = false;
+    private boolean salesRegionProblem = false;
 
     /**
      * Build regular (single) form fields without problems[]
@@ -41,8 +43,18 @@ public class CrmDeviceSender {
 
         String ecid = device.getEcid();
         if (ecid == null || ecid.isBlank()) {
-            ecid = "ECID is null";
+            ecid = "?";
             ecidProblem = true;
+        }
+
+        String salesRegion = device.getSalesRegion();
+        if ("?".equals(salesRegion)) {
+            salesRegionProblem = true;
+        }
+
+        String bateria = "0";
+        if (device.getBattery() >= 80) {
+            bateria = String.valueOf(device.getBattery());
         }
 
         form.put("IMEI", device.getImei());
@@ -53,17 +65,14 @@ public class CrmDeviceSender {
         form.put("sales_model", device.getSalesModel());
         form.put("serial_number", device.getSerialNumber());
         form.put("ecid", ecid);
-        form.put("sales_region", device.getSalesRegion());
+        form.put("sales_region", salesRegion);
         form.put("seller_id", sellerId.toString());
         form.put("price_buy", String.valueOf(device.getPricePln()));
         form.put("price_buy_euro", String.valueOf(device.getPriceEuro()));
         form.put("price_sell", "0.00");
         form.put("FV", device.getInvoiceNum());
-        form.put("bateria", String.valueOf(device.getBattery()));
-
-        String comment = device.getComment();
-        form.put("comment", formatCommentForHtml(comment));
-
+        form.put("bateria", bateria);
+        form.put("comment", formatCommentForHtml(device.getComment()));
         form.put("model_id", modelCode.toString());
         form.put("storage_id", memoryCode);
         form.put("color_id", colorCode);
@@ -108,12 +117,16 @@ public class CrmDeviceSender {
         }
 
         // remove trailing '&'
-        if (sb.length() > 0) { sb.setLength(sb.length() - 1); }
+        if (!sb.isEmpty()) { sb.setLength(sb.length() - 1); }
 
         return sb.toString();
     }
 
     public HttpResponse<String> addDeviceDebug(CrmDevice device, List<Integer> selectedProblemIds, String cookies) throws Exception {
+
+        // Reset problem flags for every new request
+        ecidProblem = false;
+        salesRegionProblem = false;
 
         String url = "https://icentrumserwis.pl/crm/add_device.php?opt=add_save";
 
@@ -178,10 +191,23 @@ public class CrmDeviceSender {
 
         if (raw.isEmpty()) return "Unknown response";
 
-        if (ecidProblem && raw.toLowerCase().contains("added successfully")) {
-            raw += " ----->>>> but without ECID";
-        }
+        boolean success = raw.contains("added successfully");
 
+        if (success) {
+            List<String> missing = new ArrayList<>();
+
+            if (ecidProblem) {
+                missing.add("[ECID]");
+            }
+
+            if (salesRegionProblem) {
+                missing.add("[Sales Region]");
+            }
+
+            if (!missing.isEmpty()) {
+                raw += " ----->>>> but without " + String.join(" and ", missing);
+            }
+        }
         return raw;
     }
 }

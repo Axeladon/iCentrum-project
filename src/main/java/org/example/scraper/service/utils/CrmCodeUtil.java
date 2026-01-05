@@ -56,7 +56,7 @@ public class CrmCodeUtil {
             case "matte black" -> "16";
             case "jet black" -> "17";
             case "purple" -> "18";
-
+            case "starlight" -> "19";
             case "pink" -> "20";
             case "midnight" -> "21";
             case "sierra blue" -> "22";
@@ -97,7 +97,7 @@ public class CrmCodeUtil {
             case "iphone 7 plus" -> 8;
             case "iphone 8" -> 9;
             case "iphone 8 plus" -> 10;
-            case "iphone se 2 (2020)" -> 11;
+            case "iphone se 2" -> 11;
             case "iphone x" -> 12;
             case "iphone xs" -> 13;
             case "iphone xs max" -> 14;
@@ -113,7 +113,7 @@ public class CrmCodeUtil {
             case "iphone 13 mini" -> 24;
             case "iphone 13" -> 25;
 
-            case "iphone se 3 (2022)" -> 32;
+            case "iphone se 3" -> 32;
             case "iphone 13 pro" -> 33;
             case "iphone 13 pro max" -> 34;
             case "iphone 14 pro max" -> 35;
@@ -128,6 +128,7 @@ public class CrmCodeUtil {
             case "iphone 16" -> 44;
             case "iphone 16 pro" -> 45;
             case "iphone 16 pro max" -> 46;
+            case "iphone 16e" -> 48;
             case "iphone 17" -> 49;
             case "iphone 17 air" -> 50;
             case "iphone 17 pro" -> 51;
@@ -138,37 +139,38 @@ public class CrmCodeUtil {
     public static Integer getSellerCode(String seller) {
 
         return switch (seller) {
-            case "360 Greensolutions"           -> 24;
-            case "ABC Worldwide LTD"            -> 14;
-            case "Ad&Win"                        -> 4;
-            case "AMB"                           -> 25;
-            case "Click And Carry"               -> 18;
-            case "EserIF"                        -> 22;
-            case "Foxway"                        -> 30;
-            case "GROENETELEFOON BV"             -> 29;
-            case "iCentrumSklep.pl"              -> 27;
-            case "iSolutions"                    -> 13;
-            case "iStock"                        -> 21;
-            case "LikeNew"                       -> 28;
-            case "Luxtrade"                      -> 19;
-            case "Midas"                         -> 16;
-            case "Mobico"                        -> 17;
-            case "Mobilki"                       -> 31;
-            case "Morning Smile"                 -> 15;
-            case "OLX"                           -> 5;
-            case "Partly"                        -> 9;
-            case "Ring Ring Distribution B.V"    -> 23;
-            case "Second"                        -> 10;
-            case "Simples Diagonal"              -> 11;
-            case "Skup na miejscu"               -> 7;
-            case "Skup wysyłkowy"                -> 6;
+            case "Twist"                         -> 1;
             case "Star trade"                    -> 2;
             case "Support"                       -> 3;
-            case "Twist"                         -> 1;
-            case "Uein"                          -> 12;
-            case "WELBACK (TWIST)"               -> 26;
-            case "WJD-REPAIRS"                   -> 20;
+            case "Ad&Win"                        -> 4;
+            case "OLX"                           -> 5;
+            case "Skup wysyłkowy"                -> 6;
+            case "Skup na miejscu"               -> 7;
             case "Zwrot"                         -> 8;
+            case "Partly"                        -> 9;
+            case "Second"                        -> 10;
+            case "Simples Diagonal"              -> 11;
+            case "Uein"                          -> 12;
+            case "iSolutions"                    -> 13;
+            case "ABC Worldwide LTD"            -> 14;
+            case "Morning Smile"                 -> 15;
+            case "Midas"                         -> 16;
+            case "Mobico"                        -> 17;
+            case "Click And Carry"               -> 18;
+            case "Luxtrade"                      -> 19;
+            case "WJD-REPAIRS"                   -> 20;
+            case "iStock"                        -> 21;
+            case "EserIF"                        -> 22;
+            case "Ring Ring Distribution B.V"    -> 23;
+            case "360 Greensolutions"           -> 24;
+            case "AMB"                           -> 25;
+            case "WELBACK (TWIST)"               -> 26;
+            case "iCentrumSklep.pl"              -> 27;
+            case "LikeNew"                       -> 28;
+            case "GROENETELEFOON BV"             -> 29;
+            case "Foxway"                        -> 30;
+            case "Mobilki"                       -> 31;
+            case "M.P. DYSTRYBUCJA"              -> 32;
 
             default -> null;
         };

@@ -10,7 +10,9 @@ module org.example.scraper {
     requires java.prefs;
     requires com.google.gson;
     requires org.fxmisc.richtext;
-    requires org.jetbrains.annotations;   // ⬅️ ОЦЕ ДОДАТИ
+    requires org.jetbrains.annotations;
+    requires okhttp3;
+    requires org.slf4j;
 
     exports org.example.scraper.model;
     opens org.example.scraper.model to javafx.fxml;
@@ -20,4 +22,7 @@ module org.example.scraper {
     opens org.example.scraper.auth to javafx.fxml;
     exports org.example.scraper.ui;
     opens org.example.scraper.ui to javafx.fxml;
+
+    exports org.example.scraper.service.regon;
+    opens org.example.scraper.service.regon to com.fasterxml.jackson.databind;
 }

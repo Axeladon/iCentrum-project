@@ -18,7 +18,8 @@ import java.util.List;
 import java.util.function.Consumer;
 
 public class SessionOrchestrator {
-    FakturaXLSession fakturaXlSession = new FakturaXLSession("TOKEN");
+    final String TOKEN = "TOKEN";
+    FakturaXLSession fakturaXlSession = new FakturaXLSession(TOKEN);
 
     private static final String ORDER_PAGE_URL_PREFIX = "https://applecentrum-612788.shoparena.pl/admin/orders/view/id/";
     private static final String DEFAULT_PROBE_ORDER_ID = "123456";

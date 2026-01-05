@@ -28,5 +28,6 @@ public class CrmDevice {
     private Double priceEuro;
 
     private String comment;
+    private boolean ceCertificationMark;
 }
 

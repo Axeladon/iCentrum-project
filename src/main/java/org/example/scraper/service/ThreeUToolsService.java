@@ -4,15 +4,19 @@ import org.example.scraper.model.CrmDevice;
 import org.example.scraper.model.DeviceDatabase;
 import org.example.scraper.model.DeviceInfo;
 import org.example.scraper.service.utils.EcidUtil;
+import org.example.scraper.service.utils.IphoneModelUtil;
 import org.example.scraper.service.utils.IphoneRegionUtil;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 public class ThreeUToolsService {
+    private final CrmColorNormalizer colorNormalizer = new CrmColorNormalizer();
 
     public void deleteInfoFiles(Path directory) {
         try (var stream = Files.list(directory)) {
@@ -62,7 +66,15 @@ public class ThreeUToolsService {
         DeviceInfo info = db.fromRaw(productType, colorCode); // Build info about this specific device
 
         crmDevice.setModel(info.getModelName());   // example: "iPhone 11 Pro"
-        crmDevice.setColor(info.getColorName());    // example: "Silver"
+
+        String normalizedColor = colorNormalizer.normalize(info.getColorName());
+        crmDevice.setColor(normalizedColor);
+
+        String modelCode = IphoneModelUtil.toModelCode(crmDevice.getModel());
+        if (modelCode != null && !modelCode.isBlank()) {
+            productType += " (" + modelCode + ")";
+            crmDevice.setProductType(productType);
+        }
 
         return crmDevice;
     }
@@ -73,7 +85,8 @@ public class ThreeUToolsService {
 
             Optional<Path> file = stream
                     .filter(path -> path.getFileName().toString().endsWith("_info.txt"))
-                    .findFirst();
+                    // select the most recently modified one
+                    .max(Comparator.comparingLong(path -> path.toFile().lastModified()));
 
             if (file.isEmpty()) {
                 return Optional.empty();
@@ -81,7 +94,8 @@ public class ThreeUToolsService {
 
             List<String> lines = Files.readAllLines(file.get());
 
-            deleteInfoFiles(directory);
+
+            deleteInfoFiles(directory);  // delete all *_info.txt files
 
             return Optional.of(lines);
 
@@ -131,7 +145,7 @@ public class ThreeUToolsService {
                     }
 
                     device.setSalesModel(salesModel + " " + value);
-                    String salesReg = IphoneRegionUtil.getCountryByRegionInfo(value);
+                    String salesReg = Objects.requireNonNullElse(IphoneRegionUtil.getCountryByRegionInfo(value), "?");
                     device.setSalesRegion(salesReg);
                     break;
 
@@ -162,7 +176,7 @@ public class ThreeUToolsService {
                     device.setSalesModel(value);
                     break;
 
-                case "DeviceColor":                         // numeric Apple color code
+                case "DeviceEnclosureColor":           // numeric Apple color code
                     device.setColor(value);
                     break;
 

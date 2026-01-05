@@ -29,6 +29,7 @@ public final class IphoneRegionUtil {
         map.put("GR", "Greece");
         map.put("HB", "Israel");
         map.put("HN", "India");
+        map.put("HX", "Georgia, Uzbekistan, Azerbaijan");
         map.put("IP", "Italy");
         map.put("J", "Japan");
         map.put("KH", "China, South Korea");
@@ -49,6 +50,7 @@ public final class IphoneRegionUtil {
         map.put("PM", "Poland");
         map.put("PO", "Portugal");
         map.put("PP", "Philippines");
+        map.put("PX", "Serbia, Croatia, Bosnia & Herzegovina");
         map.put("QL", "Italy, Spain, Portugal");
         map.put("QN", "Denmark, Norway, Sweden, Iceland");
         map.put("RK", "Kazakhstan");
@@ -66,13 +68,12 @@ public final class IphoneRegionUtil {
         map.put("TA", "Taiwan");
         map.put("TU", "Turkey");
         map.put("UA", "Ukraine");
+        map.put("VC", "Canada");
         map.put("X", "Australia, New Zealand");
         map.put("Y", "Spain");
         map.put("ZA", "Singapore");
-        map.put("ZD", "France/Germany");
+        map.put("ZD", "France, Germany");
         map.put("ZP", "Hong Kong, Macau");
-
-        // Rare region codes found in 12–15 generation
         map.put("ZK", "South Korea");
         map.put("ZQ", "Middle East (various)");
         map.put("ZG", "China (special markets)");

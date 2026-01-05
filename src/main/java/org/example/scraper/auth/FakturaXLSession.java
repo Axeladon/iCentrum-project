@@ -1,6 +1,7 @@
 package org.example.scraper.auth;
 
 import org.example.scraper.model.*;
+import org.example.scraper.service.regon.RegonClient;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
