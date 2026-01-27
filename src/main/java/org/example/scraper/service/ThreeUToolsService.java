@@ -3,6 +3,7 @@ package org.example.scraper.service;
 import org.example.scraper.model.CrmDevice;
 import org.example.scraper.model.DeviceDatabase;
 import org.example.scraper.model.DeviceInfo;
+import org.example.scraper.service.fs.InfoFileManager;
 import org.example.scraper.service.utils.EcidUtil;
 import org.example.scraper.service.utils.IphoneModelUtil;
 import org.example.scraper.service.utils.IphoneRegionUtil;
@@ -17,24 +18,12 @@ import java.util.Optional;
 
 public class ThreeUToolsService {
     private final CrmColorNormalizer colorNormalizer = new CrmColorNormalizer();
-
-    public void deleteInfoFiles(Path directory) {
-        try (var stream = Files.list(directory)) {
-            stream
-                    .filter(path -> path.getFileName().toString().endsWith("_info.txt"))
-                    .forEach(path -> {
-                        try {
-                            Files.deleteIfExists(path);
-                        } catch (Exception ex) {
-                            ex.printStackTrace();
-                        }
-                    });
-        } catch (Exception ex) {
-            ex.printStackTrace();
-        }
-    }
+    private final InfoFileManager infoFileManager = new InfoFileManager();
 
     public CrmDevice readAndBuildCrmDevice(Path directory) throws IOException {
+
+        prepareDirectory(directory);
+
         Path devicesTablePath = directory
                 .resolve("devices_table")
                 .resolve("devices_table.txt");
@@ -43,7 +32,7 @@ public class ThreeUToolsService {
             throw new IOException("devices_table.txt not found");
         }
 
-        Optional<List<String>> loadedFile = readInfoFile(directory);
+        Optional<List<String>> loadedFile = infoFileManager.readInfoFile(directory);
         if (loadedFile.isEmpty()) {
             throw new IOException("Please connect your device first");
         }
@@ -76,33 +65,8 @@ public class ThreeUToolsService {
             crmDevice.setProductType(productType);
         }
 
+        infoFileManager.deleteAllInfoFiles(directory);
         return crmDevice;
-    }
-
-    private Optional<List<String>> readInfoFile(Path directory) {
-
-        try (var stream = Files.list(directory)) {
-
-            Optional<Path> file = stream
-                    .filter(path -> path.getFileName().toString().endsWith("_info.txt"))
-                    // select the most recently modified one
-                    .max(Comparator.comparingLong(path -> path.toFile().lastModified()));
-
-            if (file.isEmpty()) {
-                return Optional.empty();
-            }
-
-            List<String> lines = Files.readAllLines(file.get());
-
-
-            deleteInfoFiles(directory);  // delete all *_info.txt files
-
-            return Optional.of(lines);
-
-        } catch (Exception ex) {
-            ex.printStackTrace();
-            return Optional.empty();
-        }
     }
 
     // Parse lines from _info.txt into CrmDevice
@@ -186,5 +150,11 @@ public class ThreeUToolsService {
             }
         }
         return device;
+    }
+
+    private void prepareDirectory(Path dir) {
+        if (infoFileManager.countInfoFiles(dir) >= 2) {
+            infoFileManager.deleteAllInfoFiles(dir);
+        }
     }
 }

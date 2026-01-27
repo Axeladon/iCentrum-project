@@ -20,7 +20,7 @@ import java.util.Map;
 
 public class MultiWindowUI extends Application {
 
-    private enum ViewName { LOGIN, ORDERS, FAKTURAXL, THREEUTOOLS, TEST }
+    private enum ViewName { LOGIN, ORDERS, FAKTURAXL, THREEUTOOLS, PACKING, TEST }
 
     private final Map<ViewName, Pane> views = new EnumMap<>(ViewName.class);
     private StackPane content;
@@ -34,7 +34,7 @@ public class MultiWindowUI extends Application {
 
         // --- LEFT MENU ---
         ListView<String> menu = new ListView<>();
-        menu.getItems().addAll("Login", "Orders", "FakturaXL", "3uTools", "...");
+        menu.getItems().addAll("Login", "Orders", "FakturaXL", "3uTools", "Packing", "...");
         menu.setPrefWidth(140);
 
         // Listener that reacts to menu selection
@@ -50,7 +50,8 @@ public class MultiWindowUI extends Application {
                 case 1 -> switchTo(ViewName.ORDERS);
                 case 2 -> switchTo(ViewName.FAKTURAXL);
                 case 3 -> switchTo(ViewName.THREEUTOOLS);
-                case 4 -> switchTo(ViewName.TEST);
+                case 4 -> switchTo(ViewName.PACKING);
+                case 5 -> switchTo(ViewName.TEST);
                 default -> switchTo(ViewName.LOGIN);
             }
         });
@@ -75,7 +76,8 @@ public class MultiWindowUI extends Application {
             case 1 -> switchTo(ViewName.ORDERS);
             case 2 -> switchTo(ViewName.FAKTURAXL);
             case 3 -> switchTo(ViewName.THREEUTOOLS);
-            case 4 -> switchTo(ViewName.TEST);
+            case 4 -> switchTo(ViewName.PACKING);
+            case 5 -> switchTo(ViewName.TEST);
             default -> switchTo(ViewName.LOGIN);
         }
     }
@@ -163,6 +165,9 @@ public class MultiWindowUI extends Application {
         // 3uTools view
         final ThreeUToolsView threeUToolsView = new ThreeUToolsView();
 
+        // Package view
+        final PackageView packageView = new PackageView();
+
         // Test view
         final TestView test = new TestView();
 
@@ -171,6 +176,7 @@ public class MultiWindowUI extends Application {
         addView(ViewName.ORDERS, orders.getRoot());
         addView(ViewName.FAKTURAXL, fakturaXlView.getRoot());
         addView(ViewName.THREEUTOOLS, threeUToolsView.getRoot());
+        addView(ViewName.PACKING, packageView.getRoot());
         addView(ViewName.TEST, test.getRoot());
     }
 
