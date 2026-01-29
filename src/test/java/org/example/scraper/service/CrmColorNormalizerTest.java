@@ -7,20 +7,18 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 class CrmColorNormalizerTest {
 
-    private final CrmColorNormalizer normalizer = new CrmColorNormalizer();
-
     @Test
     void shouldNormalizeSpaceBlackToBlack() {
-        assertEquals("Black", normalizer.normalize("Space Black"));
+        assertEquals("Black", CrmColorNormalizer.normalize("Space Black"));
     }
 
     @Test
     void shouldReturnSameColorForNonSpecialColor() {
-        assertEquals("Silver", normalizer.normalize("Silver"));
+        assertEquals("Silver", CrmColorNormalizer.normalize("Silver"));
     }
 
     @Test
     void shouldReturnNullWhenColorIsNull() {
-        assertNull(normalizer.normalize(null));
+        assertNull(CrmColorNormalizer.normalize(null));
     }
 }

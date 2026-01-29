@@ -8,6 +8,7 @@ import lombok.Setter;
 public class CrmDevice {
     private String model;       // "iPhone 15"
     private String memory;      // "128"
+    private String colorCode;  // "1"
     private String color;       // "blue"
     private String grade;       // "A"
     private String imei;

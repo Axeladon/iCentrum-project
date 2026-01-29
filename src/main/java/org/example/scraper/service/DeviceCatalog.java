@@ -1,4 +1,4 @@
-package org.example.scraper.model;
+package org.example.scraper.service;
 
 import com.google.gson.*;
 
@@ -10,16 +10,19 @@ import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public final class DeviceDatabase {
+public final class DeviceCatalog {
     private final Map<String, String> productTypeToModelName = new HashMap<>();
 
     // ProductType -> (color code -> color name) (e.g. "iPhone12,3" -> (2 -> "Silver"))
     private final Map<String, Map<Integer, String>> productTypeToColorByCode = new HashMap<>();
 
     // Simple constructor: read and parse file once
-    public DeviceDatabase(String pathToDevicesTable) throws IOException {
-        String jsonText = Files.readString(Path.of(pathToDevicesTable), StandardCharsets.UTF_8);
+    public DeviceCatalog(Path devicesTablePath) throws IOException {
+        Objects.requireNonNull(devicesTablePath, "devicesTablePath");
+
+        String jsonText = Files.readString(devicesTablePath, StandardCharsets.UTF_8);
         JsonObject root = parseJsonSmart(jsonText);
+
         buildProductTypeToModelName(root);
         buildProductTypeToColorByCode(root);
     }
@@ -29,7 +32,7 @@ public final class DeviceDatabase {
         try {
             return JsonParser.parseString(text).getAsJsonObject();
         } catch (JsonSyntaxException ignored) {
-            // try fallback
+
         }
 
         int first = text.indexOf('{');
@@ -77,7 +80,7 @@ public final class DeviceDatabase {
         }
     }
 
-    // Fill map: ProductType -> (BackColor numeric code -> BackColorText)
+    // ProductType -> (BackColor numeric code -> BackColorText)
     private void buildProductTypeToColorByCode(JsonObject root) {
         JsonArray images = root.getAsJsonArray("Images");
         if (images == null) return;
@@ -130,60 +133,13 @@ public final class DeviceDatabase {
         }
     }
 
-    // Public helper: get model name by ProductType
     public String getModelName(String productType) {
         return productTypeToModelName.get(productType);
     }
 
-    // Public helper: get color name by ProductType + color code
     public String getColorName(String productType, int colorCode) {
         Map<Integer, String> map = productTypeToColorByCode.get(productType);
         if (map == null) return null;
         return map.get(colorCode);
-    }
-
-    // Extract ProductType from string like "iPhone12,3 (A2160)"
-    public static String extractProductType(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return "";
-        }
-
-        Pattern ptPattern = Pattern.compile("\\b[A-Za-z]+[0-9]+,[0-9]+\\b");
-        Matcher m = ptPattern.matcher(raw);
-
-        return m.find() ? m.group() : "";
-    }
-
-
-    // Extract model number from string like "iPhone12,3 (A2160)"
-    public static String extractModelNumber(String raw) {
-        Pattern modelPattern = Pattern.compile("\\bA[0-9]{4}\\b");
-        Matcher m = modelPattern.matcher(raw);
-        return m.find() ? m.group() : null;
-    }
-
-    // High-level method: build DeviceInfo from raw string + color code
-    public DeviceInfo fromRaw(String rawInput, Integer colorCodeOrNull) {
-        String productType = extractProductType(rawInput);
-        String modelNumber = extractModelNumber(rawInput);
-
-        if (productType == null) {
-            throw new IllegalArgumentException("ProductType not found in input: " + rawInput);
-        }
-
-        String modelName = getModelName(productType);
-        String colorName = null;
-        if (colorCodeOrNull != null) {
-            colorName = getColorName(productType, colorCodeOrNull);
-        }
-
-        return new DeviceInfo(
-                rawInput,
-                productType,
-                modelNumber,
-                modelName,
-                colorCodeOrNull,
-                colorName
-        );
     }
 }

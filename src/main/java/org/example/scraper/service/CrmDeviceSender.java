@@ -9,7 +9,6 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -168,46 +167,5 @@ public class CrmDeviceSender {
         System.out.println("===== END RESPONSE =====");
 
         return response;
-    }
-
-    public String extractAlertMessage(String html) {
-        if (html == null || html.isEmpty()) {
-            return "Empty response";
-        }
-
-        int idx = html.indexOf("class=\"alert");
-        if (idx == -1) idx = html.indexOf("class='alert");
-        if (idx == -1) return "Unknown response";
-
-        int start = html.indexOf('>', idx);
-        if (start == -1) return "Unknown response";
-
-        int end = html.indexOf("</div>", start);
-        if (end == -1) end = html.length();
-
-        String raw = html.substring(start + 1, end);
-        raw = raw.replaceAll("<[^>]*>", "");
-        raw = raw.replaceAll("\\s+", " ").trim();
-
-        if (raw.isEmpty()) return "Unknown response";
-
-        boolean success = raw.contains("added successfully");
-
-        if (success) {
-            List<String> missing = new ArrayList<>();
-
-            if (ecidProblem) {
-                missing.add("[ECID]");
-            }
-
-            if (salesRegionProblem) {
-                missing.add("[Sales Region]");
-            }
-
-            if (!missing.isEmpty()) {
-                raw += " ----->>>> but without " + String.join(" and ", missing);
-            }
-        }
-        return raw;
     }
 }

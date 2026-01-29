@@ -82,8 +82,7 @@ public class ThreeUToolsView {
 
         // Memory spinner setup
         ObservableList<Integer> memoryOptions = FXCollections.observableArrayList(64, 128, 256, 512, 1024);
-        SpinnerValueFactory<Integer> memoryValueFactory =
-                new SpinnerValueFactory.ListSpinnerValueFactory<>(memoryOptions);
+        SpinnerValueFactory<Integer> memoryValueFactory = new SpinnerValueFactory.ListSpinnerValueFactory<>(memoryOptions);
         memorySpinner.setValueFactory(memoryValueFactory);
         memorySpinner.setPrefWidth(80);
         memorySpinner.setEditable(false);
@@ -245,22 +244,25 @@ public class ThreeUToolsView {
                 HttpResponse<String> response = client.addDeviceDebug(crmDevice, problems, cookies);
 
                 String html = response.body();
-                String statusMessage = client.extractAlertMessage(html);
-                crmPhoneStatus.setText(statusMessage);
 
-                if (html.contains("alert-success")) {
+                if (html.contains("Please sign in")) {
+                    crmPhoneStatus.setText("Your PHPSESSID or HASH has expired. Please log in again");
+                    crmPhoneStatus.setStyle("-fx-font-size: 14px; -fx-text-fill: #1a73e8;");
+                }
+                else if (html.contains("alert-success")) {
                     crmPhoneStatus.setStyle("-fx-font-size: 14px; -fx-text-fill: green;");
+                    crmPhoneStatus.setText("Device " + crmDevice.getImei() + " was added successfully");
+                    BrowserUtils.openImeiLabel(crmDevice.getImei());
                 } else if (html.contains("alert-warning")) {
                     crmPhoneStatus.setStyle("-fx-font-size: 14px; -fx-text-fill: orange;");
+                    crmPhoneStatus.setText("A device with IMEI: " + crmDevice.getImei() + " has already been added");
                 } else {
                     crmPhoneStatus.setStyle("-fx-font-size: 14px; -fx-text-fill: #1a73e8;");
+                    crmPhoneStatus.setText("Unknown response");
                 }
 
                 problemCheckBoxes.values().forEach(cb -> cb.setSelected(false));
                 commentArea.setText(ceMarkRadioButton.isSelected() ? "CE" : "-CE-");
-
-                BrowserUtils.openImeiLabel(crmDevice.getImei());
-
             } catch (Exception ex) {
                 ex.printStackTrace();
                 new Alert(Alert.AlertType.ERROR, ex.getMessage()).showAndWait();

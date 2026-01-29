@@ -1,8 +1,6 @@
 package org.example.scraper.service;
 
 import org.example.scraper.model.CrmDevice;
-import org.example.scraper.model.DeviceDatabase;
-import org.example.scraper.model.DeviceInfo;
 import org.example.scraper.service.fs.InfoFileManager;
 import org.example.scraper.service.utils.EcidUtil;
 import org.example.scraper.service.utils.IphoneModelUtil;
@@ -11,72 +9,51 @@ import org.example.scraper.service.utils.IphoneRegionUtil;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Comparator;
+import java.nio.file.Paths;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 
 public class ThreeUToolsService {
-    private final CrmColorNormalizer colorNormalizer = new CrmColorNormalizer();
     private final InfoFileManager infoFileManager = new InfoFileManager();
 
     public CrmDevice readAndBuildCrmDevice(Path directory) throws IOException {
-
-        prepareDirectory(directory);
-
-        Path devicesTablePath = directory
-                .resolve("devices_table")
-                .resolve("devices_table.txt");
-
-        if (!Files.exists(devicesTablePath)) {
-            throw new IOException("devices_table.txt not found");
-        }
-
-        Optional<List<String>> loadedFile = infoFileManager.readInfoFile(directory);
-        if (loadedFile.isEmpty()) {
-            throw new IOException("Please connect your device first");
-        }
-
         CrmDevice crmDevice = new CrmDevice();
-        crmDevice = parseInfoFile(loadedFile.get(), crmDevice);
 
-        String productType = crmDevice.getModel();
+        deleteInfoFilesIfMultiple(directory);
 
-        int colorCode = 0;
-        try {
-            if (crmDevice.getColor() != null) {
-                colorCode = Integer.parseInt(crmDevice.getColor());
-            }
-        } catch (NumberFormatException ignored) {}
+        List<String> infoFile = loadInfoFileOrThrow(directory);
+        fillFromInfoFile(infoFile, crmDevice);
 
-        // Load database once using path to devices_table.txt
-        DeviceDatabase db = new DeviceDatabase(devicesTablePath.toString());
+        Path devicesTablePath = resolveDevicesTablePath(); // devices_table.txt
+        DeviceCatalog deviceCatalog = new DeviceCatalog(devicesTablePath);
+        fillFromCatalog(deviceCatalog, crmDevice);
 
-        DeviceInfo info = db.fromRaw(productType, colorCode); // Build info about this specific device
-
-        crmDevice.setModel(info.getModelName());   // example: "iPhone 11 Pro"
-
-        String normalizedColor = colorNormalizer.normalize(info.getColorName());
+        String normalizedColor = CrmColorNormalizer.normalize(crmDevice.getColor());
         crmDevice.setColor(normalizedColor);
 
-        String modelCode = IphoneModelUtil.toModelCode(crmDevice.getModel());
-        if (modelCode != null && !modelCode.isBlank()) {
-            productType += " (" + modelCode + ")";
-            crmDevice.setProductType(productType);
-        }
+        crmDevice.setProductType(buildProductTypeWithModelCode(crmDevice));
 
         infoFileManager.deleteAllInfoFiles(directory);
+
         return crmDevice;
     }
 
-    // Parse lines from _info.txt into CrmDevice
-    private CrmDevice parseInfoFile(List<String> loadedFile, CrmDevice device) {
+    private void fillFromCatalog(DeviceCatalog deviceCatalog, CrmDevice crmDevice) {
+        String productType = crmDevice.getProductType();
+        String colorCode = crmDevice.getColorCode();
+        String modelName = deviceCatalog.getModelName(productType);
+        String colorName = deviceCatalog.getColorName(productType, Integer.parseInt(colorCode));
 
-        if (loadedFile == null || loadedFile.isEmpty()) {
-            return device;
-        }
+        crmDevice.setModel(modelName);
+        crmDevice.setColor(colorName);
+    }
 
-        for (String line : loadedFile) {
+    private void fillFromInfoFile(List<String> infoFile, CrmDevice device) {
+
+        Objects.requireNonNull(infoFile, "loadedFile");
+        Objects.requireNonNull(device, "device");
+
+        for (String line : infoFile) {
 
             if (line == null || !line.contains(" ")) {
                 continue;
@@ -141,20 +118,43 @@ public class ThreeUToolsService {
                     break;
 
                 case "DeviceEnclosureColor":           // numeric Apple color code
-                    device.setColor(value);
+                    device.setColorCode(value);
                     break;
 
                 default:
-                    // Skip everything else
-                    break;
+                    break; // Skip everything else
             }
         }
-        return device;
     }
 
-    private void prepareDirectory(Path dir) {
+    private void deleteInfoFilesIfMultiple(Path dir) {
         if (infoFileManager.countInfoFiles(dir) >= 2) {
             infoFileManager.deleteAllInfoFiles(dir);
         }
+    }
+
+    private Path resolveDevicesTablePath() throws IOException {
+        Path appDir = Paths.get(System.getProperty("user.dir"));
+        Path devicesTablePath = appDir
+                .resolve("data_toolkit")
+                .resolve("devices_table.txt");
+
+        if (!Files.exists(devicesTablePath)) {
+            throw new IOException("File not found: " + devicesTablePath.toAbsolutePath());
+        }
+        return devicesTablePath;
+    }
+
+    private List<String> loadInfoFileOrThrow(Path directory) throws IOException {
+        return infoFileManager.readInfoFile(directory)
+                .orElseThrow(() -> new IOException("Please connect your device first"));
+    }
+
+    private String buildProductTypeWithModelCode(CrmDevice crmDevice) {
+        String modelCode = IphoneModelUtil.toModelCode(crmDevice.getModel());
+        if (modelCode == null || modelCode.isBlank()) {
+            return crmDevice.getProductType();
+        }
+        return crmDevice.getProductType() + " (" + modelCode + ")";
     }
 }

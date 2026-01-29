@@ -25,4 +25,6 @@ module org.example.scraper {
 
     exports org.example.scraper.service.regon;
     opens org.example.scraper.service.regon to com.fasterxml.jackson.databind;
+    exports org.example.scraper.service;
+    opens org.example.scraper.service to javafx.fxml;
 }
