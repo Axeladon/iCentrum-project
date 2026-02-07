@@ -28,6 +28,7 @@ public class MultiWindowUI extends Application {
 
     @Override
     public void start(Stage primaryStage) {
+
         BorderPane root = new BorderPane();
         content = new StackPane();
         content.setPadding(new Insets(10));

@@ -136,44 +136,4 @@ public class CrmCodeUtil {
             default -> null;
         };
     }
-    public static Integer getSellerCode(String seller) {
-
-        return switch (seller) {
-            case "Twist"                         -> 1;
-            case "Star trade"                    -> 2;
-            case "Support"                       -> 3;
-            case "Ad&Win"                        -> 4;
-            case "OLX"                           -> 5;
-            case "Skup wysyłkowy"                -> 6;
-            case "Skup na miejscu"               -> 7;
-            case "Zwrot"                         -> 8;
-            case "Partly"                        -> 9;
-            case "Second"                        -> 10;
-            case "Simples Diagonal"              -> 11;
-            case "Uein"                          -> 12;
-            case "iSolutions"                    -> 13;
-            case "ABC Worldwide LTD"            -> 14;
-            case "Morning Smile"                 -> 15;
-            case "Midas"                         -> 16;
-            case "Mobico"                        -> 17;
-            case "Click And Carry"               -> 18;
-            case "Luxtrade"                      -> 19;
-            case "WJD-REPAIRS"                   -> 20;
-            case "iStock"                        -> 21;
-            case "EserIF"                        -> 22;
-            case "Ring Ring Distribution B.V"    -> 23;
-            case "360 Greensolutions"           -> 24;
-            case "AMB"                           -> 25;
-            case "WELBACK (TWIST)"               -> 26;
-            case "iCentrumSklep.pl"              -> 27;
-            case "LikeNew"                       -> 28;
-            case "GROENETELEFOON BV"             -> 29;
-            case "Foxway"                        -> 30;
-            case "Mobilki"                       -> 31;
-            case "M.P. DYSTRYBUCJA"              -> 32;
-
-            default -> null;
-        };
-    }
-
 }

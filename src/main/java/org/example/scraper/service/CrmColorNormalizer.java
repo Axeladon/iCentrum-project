@@ -6,6 +6,7 @@ public final class CrmColorNormalizer {
 
         return switch (color) {
             case "Space Black" -> "Black";
+            case "Sliver" -> "Silver";  //3uTools has an error since iPhone 17 PRO
             default -> color;
         };
     }

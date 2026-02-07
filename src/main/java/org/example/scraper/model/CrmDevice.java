@@ -24,7 +24,7 @@ public class CrmDevice {
     private String serialNumber;
     private String ecid;
     private String salesRegion;
-    private String seller;
+    private Integer sellerCode;
     private Double pricePln;
     private Double priceEuro;
 

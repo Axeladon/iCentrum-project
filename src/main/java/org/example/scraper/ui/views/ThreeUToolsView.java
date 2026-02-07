@@ -9,8 +9,11 @@ import javafx.scene.layout.*;
 import lombok.Getter;
 import org.example.scraper.model.CrmDevice;
 import org.example.scraper.model.CrmProblem;
+import org.example.scraper.model.Supplier;
 import org.example.scraper.service.CrmDeviceSender;
 import org.example.scraper.service.ThreeUToolsService;
+import org.example.scraper.service.external.supplier.SupplierApiException;
+import org.example.scraper.service.external.supplier.SupplierClient;
 import org.example.scraper.service.settings.SettingsService;
 import org.example.scraper.service.utils.BrowserUtils;
 
@@ -47,7 +50,7 @@ public class ThreeUToolsView {
 
     private final ComboBox<String> periodCombo = new ComboBox<>();
     private final TextField invoiceField = new TextField();
-    private final ComboBox<String> sourceCombo = new ComboBox<>();
+    private final ComboBox<Supplier> sourceCombo = new ComboBox<>();
     private final TextField pricePlnField = new TextField();
     private final TextField priceEurField = new TextField();
 
@@ -59,6 +62,7 @@ public class ThreeUToolsView {
     private final VBox root = new VBox(10);
 
     public ThreeUToolsView() {
+
         root.setPadding(new Insets(10));
         root.setFillWidth(true);
 
@@ -133,21 +137,7 @@ public class ThreeUToolsView {
         Label plnLabel = new Label("PLN:");
         Label eurLabel = new Label("EUR:");
 
-        sourceCombo.getItems().addAll(
-                "Skup na miejscu", "Skup wysyłkowy", "iCentrumSklep.pl", "Second",
-                "Ad&Win", "LikeNew", "Mobilki", "WELBACK (TWIST)", "Twist", "Partly", "Star trade", "M.P. DYSTRYBUCJA"
-        );
-        sourceCombo.setPrefWidth(250);
-
-        String lastSource = SettingsService.loadString(KEY_SOURCE, null);
-        if (lastSource != null && sourceCombo.getItems().contains(lastSource)) {
-            sourceCombo.setValue(lastSource);
-        }
-
-        sourceCombo.setOnAction(e -> {
-            String val = sourceCombo.getValue();
-            if (val != null && !val.isBlank()) SettingsService.saveString(KEY_SOURCE, val);
-        });
+        initSupplierComboBox();
 
         pricePlnField.setPrefWidth(80);
         pricePlnField.setTextFormatter(new TextFormatter<>(decimalFilter));
@@ -182,10 +172,12 @@ public class ThreeUToolsView {
                 return;
             }
 
-            if (sourceCombo.getValue() == null || sourceCombo.getValue().isBlank()) {
+            Supplier selected = sourceCombo.getValue();
+            if (selected == null || selected.getSupplier() == null || selected.getSupplier().isBlank()) {
                 new Alert(Alert.AlertType.ERROR, "Source is required").showAndWait();
                 return;
             }
+
 
             double pricePln = parsePositiveDouble(pricePlnField.getText());
             if (pricePln <= 0) {
@@ -203,7 +195,7 @@ public class ThreeUToolsView {
             String cookies = "PHPSESSID=" + php + "; hash=" + hash;
 
             try {
-                SettingsService.saveString(KEY_SOURCE, sourceCombo.getValue());
+                SettingsService.saveString(KEY_SOURCE, Integer.toString(selected.getCode()));
 
                 CrmDevice crmDevice = threeUToolsService.readAndBuildCrmDevice(selectedDirectory);
                 crmDevice.setMemory(Integer.toString(memorySpinner.getValue()));
@@ -216,7 +208,7 @@ public class ThreeUToolsView {
                 String invoice = safeTrim(invoiceField.getText());
                 crmDevice.setInvoiceNum(invoice);
 
-                crmDevice.setSeller(sourceCombo.getValue());
+                crmDevice.setSellerCode(sourceCombo.getValue().getCode());
                 crmDevice.setPricePln(pricePln);
 
                 double priceEur = parseNonNegativeDouble(priceEurField.getText());
@@ -355,5 +347,73 @@ public class ThreeUToolsView {
             }
         }
         return grid;
+    }
+
+    private void showError(String title, Throwable error) {
+        error.printStackTrace();
+
+        Alert alert = new Alert(Alert.AlertType.ERROR);
+        alert.setTitle("Error");
+        alert.setHeaderText(title);
+        alert.setContentText(error.getMessage());
+        alert.showAndWait();
+    }
+
+    private List<Supplier> getSuppliers() {
+        try {
+            SupplierClient supplierClient = new SupplierClient();
+            return supplierClient.getSuppliers();
+        } catch (SupplierApiException e) {
+            showError("Failed to load the list of suppliers", e);
+            return List.of();
+        }
+    }
+
+    private void initSupplierComboBox() {
+        sourceCombo.setPrefWidth(250);
+        configureSupplierComboBox(sourceCombo);
+
+        sourceCombo.getItems().setAll(getSuppliers());
+
+        restoreLastSelectedSupplier();
+        sourceCombo.setOnAction(e -> saveSelectedSupplier());
+    }
+
+    private void configureSupplierComboBox(ComboBox<Supplier> combo) {
+        combo.setCellFactory(cb -> new ListCell<>() {
+            @Override
+            protected void updateItem(Supplier item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : item.getSupplier());
+            }
+        });
+
+        combo.setButtonCell(new ListCell<>() {
+            @Override
+            protected void updateItem(Supplier item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : item.getSupplier());
+            }
+        });
+    }
+
+    private void restoreLastSelectedSupplier() {
+        String lastSource = SettingsService.loadString(KEY_SOURCE, null);
+        if (lastSource == null) return;
+
+        try {
+            int code = Integer.parseInt(lastSource);
+            sourceCombo.getItems().stream()
+                    .filter(s -> s.getCode() == code)
+                    .findFirst()
+                    .ifPresent(sourceCombo::setValue);
+        } catch (NumberFormatException ignored) {}
+    }
+
+    private void saveSelectedSupplier() {
+        Supplier s = sourceCombo.getValue();
+        if (s != null) {
+            SettingsService.saveString(KEY_SOURCE, Integer.toString(s.getCode()));
+        }
     }
 }

@@ -32,13 +32,11 @@ public class CrmDeviceSender {
         String  memoryCode = CrmCodeUtil.getMemoryCode(device.getMemory());
         String  colorCode  = CrmCodeUtil.getColorCode(device.getColor());
         Integer gradeCode  = CrmCodeUtil.getGradeCode(device.getGrade());
-        Integer sellerId   = CrmCodeUtil.getSellerCode(device.getSeller());
 
         if (modelCode == null)  throw new IllegalArgumentException("Unknown model: " + device.getModel());
         if (memoryCode == null) throw new IllegalArgumentException("Unknown memory: " + device.getMemory());
         if (colorCode == null)  throw new IllegalArgumentException("Unknown color: " + device.getColor());
         if (gradeCode == null)  throw new IllegalArgumentException("Unknown grade: " + device.getGrade());
-        if (sellerId == null)   throw new IllegalArgumentException("Unknown seller: " + device.getSeller());
 
         String ecid = device.getEcid();
         if (ecid == null || ecid.isBlank()) {
@@ -65,7 +63,7 @@ public class CrmDeviceSender {
         form.put("serial_number", device.getSerialNumber());
         form.put("ecid", ecid);
         form.put("sales_region", salesRegion);
-        form.put("seller_id", sellerId.toString());
+        form.put("seller_id", Integer.toString(device.getSellerCode()));
         form.put("price_buy", String.valueOf(device.getPricePln()));
         form.put("price_buy_euro", String.valueOf(device.getPriceEuro()));
         form.put("price_sell", "0.00");
