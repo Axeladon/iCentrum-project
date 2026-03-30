@@ -10,8 +10,10 @@ public class CrmDevice {
     private String memory;      // "128"
     private String colorCode;  // "1"
     private String color;       // "blue"
-    private String grade;       // "A"
+    private String housingGrade;   // "A"
+    private String displayGrade;       // "A"
     private String imei;
+    private String imei2;
     private Integer battery;
 
     private boolean unchecked;

@@ -3,8 +3,15 @@ package org.example.scraper.service.utils;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 public final class IphoneRegionUtil {
+
+    private static final Set<String> EUROPE_REGION_CODES = Set.of(
+            "PX", "ZD", "DN", "D", "F", "FB", "FD", "FS", "GR", "IP",
+            "KN", "KS", "QN", "QL", "PL", "PM", "PO", "RO", "SL", "SE",
+            "HX", "B", "SX", "RX", "ET", "CZ", "LT", "LV"
+    );
 
     private static final Map<String, String> REGION_CODE_TO_COUNTRY;
 
@@ -16,6 +23,7 @@ public final class IphoneRegionUtil {
         map.put("AH", "Bahrain, Kuwait");
         map.put("B", "United Kingdom, Ireland");
         map.put("BZ", "Brazil");
+        map.put("BR", "Brazil");
         map.put("CH", "China");
         map.put("CZ", "Czech Republic");
         map.put("DN", "Austria, Germany, Netherlands");
@@ -29,7 +37,7 @@ public final class IphoneRegionUtil {
         map.put("GR", "Greece");
         map.put("HB", "Israel");
         map.put("HN", "India");
-        map.put("HX", "Georgia, Uzbekistan, Azerbaijan");
+        map.put("HX", "Poland");
         map.put("IP", "Italy");
         map.put("J", "Japan");
         map.put("KH", "China, South Korea");
@@ -59,11 +67,13 @@ public final class IphoneRegionUtil {
         map.put("RP", "Russia");
         map.put("RR", "Russia");
         map.put("RS", "Russia");
+        map.put("RX", "Bulgaria");
         map.put("RU", "Russia");
         map.put("SE", "Serbia");
         map.put("SL", "Slovakia");
         map.put("SO", "South Africa");
         map.put("SU", "Ukraine");
+        map.put("SX", "Czech, Icelandic and Slovak");
         map.put("T", "Italy");
         map.put("TA", "Taiwan");
         map.put("TU", "Turkey");
@@ -83,16 +93,25 @@ public final class IphoneRegionUtil {
 
     private IphoneRegionUtil() {}
 
-    public static String getCountryByRegionCode(String regionCode) {
-        if (regionCode == null) return null;
-        return REGION_CODE_TO_COUNTRY.get(regionCode.trim().toUpperCase());
+    private static String extractRegionCode(String input) {
+        if (input == null || input.isBlank()) {
+            return null;
+        }
+
+        String trimmed = input.trim().toUpperCase();
+        int slashIndex = trimmed.indexOf('/');
+
+        return slashIndex > 0
+                ? trimmed.substring(0, slashIndex)
+                : trimmed;
     }
 
     public static String getCountryByRegionInfo(String regionInfo) {
-        if (regionInfo == null || regionInfo.isEmpty()) return null;
-        String trimmed = regionInfo.trim().toUpperCase();
-        int slashIndex = trimmed.indexOf('/');
-        String code = (slashIndex > 0) ? trimmed.substring(0, slashIndex) : trimmed;
-        return getCountryByRegionCode(code);
+        return REGION_CODE_TO_COUNTRY.get(extractRegionCode(regionInfo));
+    }
+
+    public static boolean isEuropeanDistribution(String regionInfo) {
+        String code = extractRegionCode(regionInfo);
+        return code != null && EUROPE_REGION_CODES.contains(code);
     }
 }

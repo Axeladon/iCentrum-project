@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
@@ -45,26 +44,30 @@ public class InfoFileManager {
         }
     }
 
-    public Optional<List<String>> readInfoFile(Path directory) {
+    public Optional<List<String>> readInfoFile(Path directory) throws IOException {
+        Path newest = null;
+        long newestMillis = Long.MIN_VALUE;
 
         try (var stream = Files.list(directory)) {
+            for (Path p : stream
+                    .filter(Files::isRegularFile)
+                    .filter(x -> x.getFileName().toString().endsWith(INFO_SUFFIX))
+                    .toList()) {
 
-            Optional<Path> file = stream
-                    .filter(path -> path.getFileName().toString().endsWith(INFO_SUFFIX))
-                    // select the most recently modified one
-                    .max(Comparator.comparingLong(path -> path.toFile().lastModified()));
-
-            if (file.isEmpty()) {
-                return Optional.empty();
+                long modified = Files.getLastModifiedTime(p).toMillis();
+                if (modified > newestMillis) {
+                    newestMillis = modified;
+                    newest = p;
+                }
             }
+        }
 
-            List<String> lines = Files.readAllLines(file.get());
-
-            return Optional.of(lines);
-
-        } catch (Exception ex) {
-            ex.printStackTrace();
+        if (newest == null) {
             return Optional.empty();
         }
+
+        return Optional.of(Files.readAllLines(newest));
     }
+
+
 }

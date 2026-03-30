@@ -1,4 +1,4 @@
-package org.example.scraper.service.external.supplier;
+package org.example.scraper.exception;
 
 public class SupplierApiException extends RuntimeException {
 

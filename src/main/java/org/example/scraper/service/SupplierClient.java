@@ -1,8 +1,9 @@
-package org.example.scraper.service.external.supplier;
+package org.example.scraper.service;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.example.scraper.exception.SupplierApiException;
 import org.example.scraper.model.Supplier;
 
 import java.io.IOException;

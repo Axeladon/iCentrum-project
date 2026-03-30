@@ -10,16 +10,14 @@ import lombok.Getter;
 import org.example.scraper.model.CrmDevice;
 import org.example.scraper.model.CrmProblem;
 import org.example.scraper.model.Supplier;
-import org.example.scraper.service.CrmDeviceSender;
+import org.example.scraper.service.CrmIntegrationService;
+import org.example.scraper.service.OpenBrowser;
 import org.example.scraper.service.ThreeUToolsService;
-import org.example.scraper.service.external.supplier.SupplierApiException;
-import org.example.scraper.service.external.supplier.SupplierClient;
+import org.example.scraper.exception.SupplierApiException;
+import org.example.scraper.service.SupplierClient;
 import org.example.scraper.service.settings.SettingsService;
-import org.example.scraper.service.utils.BrowserUtils;
 
 import java.net.http.HttpResponse;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
@@ -34,14 +32,12 @@ public class ThreeUToolsView {
 
     // Settings keys
     private static final String KEY_SOURCE = "threeutools_source";
-    private static final String KEY_FOLDER = "threeutools_folder";
     private static final String KEY_PHPSESSID = "threeutools_phpsessid";
     private static final String KEY_HASH = "threeutools_hash";
 
     private final ThreeUToolsService threeUToolsService = new ThreeUToolsService();
 
     private final Spinner<Integer> memorySpinner = new Spinner<>();
-    private final ComboBox<String> gradeCombo = new ComboBox<>();
     private final Spinner<Integer> batterySpinner =
             new Spinner<>(new SpinnerValueFactory.IntegerSpinnerValueFactory(79, 100, 100));
 
@@ -55,13 +51,14 @@ public class ThreeUToolsView {
     private final TextField priceEurField = new TextField();
 
     private final TextArea commentArea = new TextArea();
-    private final RadioButton ceMarkRadioButton = new RadioButton();
     private final Label crmPhoneStatus = new Label("");
 
     @Getter
     private final VBox root = new VBox(10);
 
     public ThreeUToolsView() {
+        ComboBox<String> housingGradeComboBox = createComboBox();
+        ComboBox<String> displayGradeComboBox = createComboBox();
 
         root.setPadding(new Insets(10));
         root.setFillWidth(true);
@@ -74,7 +71,6 @@ public class ThreeUToolsView {
         commentArea.setWrapText(true);
         commentArea.setPrefRowCount(4);
         commentArea.setMaxWidth(Double.MAX_VALUE);
-        commentArea.setText("CE\n");
 
         UnaryOperator<TextFormatter.Change> digitsFilter = change ->
                 change.getControlNewText().matches("\\d*") ? change : null;
@@ -91,9 +87,6 @@ public class ThreeUToolsView {
         memorySpinner.setPrefWidth(80);
         memorySpinner.setEditable(false);
 
-        // Grade
-        gradeCombo.getItems().addAll("A", "AB", "B", "C");
-        gradeCombo.setValue("A");
 
         // Battery
         batterySpinner.setEditable(true);
@@ -102,19 +95,21 @@ public class ThreeUToolsView {
 
         // ======== PARAMS ========
         Label memoryLabel = new Label("Memory:");
-        Label gradeLabel = new Label("Grade:");
+        Label housingGradeLabel = new Label("Korpus:");
+        Label displayGradedeLabel = new Label("Szyba:");
         Label batteryLabel = new Label("Battery (%):");
 
-        HBox leftParams = new HBox(10, memoryLabel, memorySpinner, gradeLabel, gradeCombo, batteryLabel, batterySpinner);
+        HBox leftParams = new HBox(10, memoryLabel, memorySpinner, housingGradeLabel, housingGradeComboBox,
+                displayGradedeLabel, displayGradeComboBox, batteryLabel, batterySpinner);
         leftParams.setAlignment(Pos.CENTER_LEFT);
 
-        HBox rightParams = new HBox(10, uncheckedCheckBox, phoneboxCheckBox);
-        rightParams.setAlignment(Pos.CENTER_RIGHT);
+        HBox rightBoxes = new HBox(10, uncheckedCheckBox, phoneboxCheckBox);
+        rightBoxes.setAlignment(Pos.CENTER_RIGHT);
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        HBox paramsRow = new HBox(10, leftParams, spacer, rightParams);
+        HBox paramsRow = new HBox(10, leftParams);
         paramsRow.setAlignment(Pos.CENTER_LEFT);
 
         // ======== PERIOD ========
@@ -129,7 +124,7 @@ public class ThreeUToolsView {
         invoiceField.setPromptText("Invoice");
         invoiceField.setPrefWidth(120);
 
-        HBox periodRow = new HBox(10, new Label("Period:"), periodCombo, new Label("Invoice:"), invoiceField);
+        HBox periodRow = new HBox(10, new Label("Period:"), periodCombo, new Label("Invoice:"), invoiceField, spacer, rightBoxes);
         periodRow.setAlignment(Pos.CENTER_LEFT);
 
         // ======== SOURCE / PRICE ========
@@ -153,24 +148,8 @@ public class ThreeUToolsView {
         // ======== PROBLEMS GRID ========
         GridPane problemsGrid = createProblemsGrid();
 
-        // ======== COMMENT HEADER ========
-        Label commentLabel = new Label("CE");
-        HBox commentHeader = new HBox(6, ceMarkRadioButton, commentLabel);
-        commentHeader.setAlignment(Pos.CENTER_LEFT);
-        ceMarkRadioButton.setSelected(true);
-
-        ceMarkRadioButton.selectedProperty().addListener((obs, oldVal, newVal) -> {
-            commentArea.setText(newVal ? "CE" : "-CE-");
-        });
-
         // ======== LOAD TO CRM ========
         loadToCrmBtn.setOnAction(e -> {
-
-            Path selectedDirectory = loadSelectedDirectory();
-            if (selectedDirectory == null) {
-                new Alert(Alert.AlertType.ERROR, "Folder is not selected").showAndWait();
-                return;
-            }
 
             Supplier selected = sourceCombo.getValue();
             if (selected == null || selected.getSupplier() == null || selected.getSupplier().isBlank()) {
@@ -178,28 +157,29 @@ public class ThreeUToolsView {
                 return;
             }
 
-
             double pricePln = parsePositiveDouble(pricePlnField.getText());
             if (pricePln <= 0) {
                 new Alert(Alert.AlertType.ERROR, "PLN price must be > 0").showAndWait();
                 return;
             }
 
-            String php = SettingsService.loadString(KEY_PHPSESSID, "").trim();
+            //todo возможно нужно создать клас для проверки
+            String phpsessid = SettingsService.loadString(KEY_PHPSESSID, "").trim();
             String hash = SettingsService.loadString(KEY_HASH, "").trim();
-            if (php.isEmpty() || hash.isEmpty()) {
+            if (phpsessid.isEmpty() || hash.isEmpty()) {
                 new Alert(Alert.AlertType.ERROR, "PHPSESSID and hash are required").showAndWait();
                 return;
             }
 
-            String cookies = "PHPSESSID=" + php + "; hash=" + hash;
+            //todo возможно нужно создать клас для проверки
 
             try {
                 SettingsService.saveString(KEY_SOURCE, Integer.toString(selected.getCode()));
 
-                CrmDevice crmDevice = threeUToolsService.readAndBuildCrmDevice(selectedDirectory);
+                CrmDevice crmDevice = threeUToolsService.createCrmDeviceFromDirectory();
                 crmDevice.setMemory(Integer.toString(memorySpinner.getValue()));
-                crmDevice.setGrade(gradeCombo.getValue());
+                crmDevice.setHousingGrade(housingGradeComboBox.getValue());
+                crmDevice.setDisplayGrade(displayGradeComboBox.getValue());
                 crmDevice.setBattery(batterySpinner.getValue());
                 crmDevice.setUnchecked(uncheckedCheckBox.isSelected());
                 crmDevice.setBox(phoneboxCheckBox.isSelected());
@@ -219,21 +199,29 @@ public class ThreeUToolsView {
                     return;
                 }
 
-                String comment = safeTrim(commentArea.getText());
-                if (comment.contains("-CE-")) {
-                    comment = comment.replace("-CE-", "<strike><b><font color=\"#ff0000\">CE</font></b></strike>");
+                String comment = "";
+                if (!crmDevice.isCeCertificationMark()) {
+                    comment += "<b><font color=\"#ff0000\">BRAK CE</font></b>\n";
                 }
 
+                comment += "<font color=\"#0000ff\">"
+                        + "Korpus:&nbsp;<b>" + crmDevice.getHousingGrade() + "</b>, "
+                        + "Szyba:&nbsp;<b>" + crmDevice.getDisplayGrade() + "</b>"
+                        + "</font>"
+                        + "\n"
+                        + safeTrim(commentArea.getText());
+
                 crmDevice.setComment(comment);
-                crmDevice.setCeCertificationMark(ceMarkRadioButton.isSelected());
 
                 List<Integer> problems = problemCheckBoxes.entrySet().stream()
                         .filter(entry -> entry.getValue().isSelected())
                         .map(Map.Entry::getKey)
                         .collect(Collectors.toList());
 
-                CrmDeviceSender client = new CrmDeviceSender();
-                HttpResponse<String> response = client.addDeviceDebug(crmDevice, problems, cookies);
+                //todo make in normal way all this below
+
+                CrmIntegrationService client = new CrmIntegrationService();
+                HttpResponse<String> response = client.sendDeviceToCrm(crmDevice, problems);
 
                 String html = response.body();
 
@@ -244,7 +232,7 @@ public class ThreeUToolsView {
                 else if (html.contains("alert-success")) {
                     crmPhoneStatus.setStyle("-fx-font-size: 14px; -fx-text-fill: green;");
                     crmPhoneStatus.setText("Device " + crmDevice.getImei() + " was added successfully");
-                    BrowserUtils.openImeiLabel(crmDevice.getImei());
+                    OpenBrowser.openImeiLabel(crmDevice.getImei());
                 } else if (html.contains("alert-warning")) {
                     crmPhoneStatus.setStyle("-fx-font-size: 14px; -fx-text-fill: orange;");
                     crmPhoneStatus.setText("A device with IMEI: " + crmDevice.getImei() + " has already been added");
@@ -254,9 +242,16 @@ public class ThreeUToolsView {
                 }
 
                 problemCheckBoxes.values().forEach(cb -> cb.setSelected(false));
-                commentArea.setText(ceMarkRadioButton.isSelected() ? "CE" : "-CE-");
+                commentArea.clear();
+
+                String supplier = selected.getSupplier();
+                if ("Skup na miejscu".equals(supplier) || "Skup wysyłkowy".equals(supplier) || "iCentrumSklep.pl".equals(supplier)) {
+                    uncheckedCheckBox.setSelected(false);
+                    phoneboxCheckBox.setSelected(false);
+                    pricePlnField.clear();
+                }
+
             } catch (Exception ex) {
-                ex.printStackTrace();
                 new Alert(Alert.AlertType.ERROR, ex.getMessage()).showAndWait();
             }
         });
@@ -267,23 +262,17 @@ public class ThreeUToolsView {
                 periodRow,
                 sourceRow,
                 problemsGrid,
-                commentHeader,
                 commentArea,
                 loadToCrmBtn,
                 createCrmPhoneStatusArea()
         );
     }
 
-    private Path loadSelectedDirectory() {
-        String folderStr = SettingsService.loadString(KEY_FOLDER, null);
-        if (folderStr == null || folderStr.isBlank()) return null;
-
-        try {
-            Path p = Path.of(folderStr.trim());
-            return Files.isDirectory(p) ? p : null;
-        } catch (Exception ignored) {
-            return null;
-        }
+    private static ComboBox<String> createComboBox() {
+        ComboBox<String> comboBox = new ComboBox<>();
+        comboBox.getItems().addAll("A", "AB", "B", "C");
+        comboBox.setValue("A");
+        return comboBox;
     }
 
     private static String safeTrim(String s) {

@@ -1,7 +1,10 @@
 package org.example.scraper.service;
 
+import org.example.scraper.exception.SelectedDirectoryException;
 import org.example.scraper.model.CrmDevice;
 import org.example.scraper.service.fs.InfoFileManager;
+import org.example.scraper.service.settings.SettingsService;
+import org.example.scraper.service.utils.CrmColorNormalizer;
 import org.example.scraper.service.utils.EcidUtil;
 import org.example.scraper.service.utils.IphoneModelUtil;
 import org.example.scraper.service.utils.IphoneRegionUtil;
@@ -14,12 +17,13 @@ import java.util.List;
 import java.util.Objects;
 
 public class ThreeUToolsService {
-    private final InfoFileManager infoFileManager = new InfoFileManager();
+    private static final String SELECTED_DIR_ERROR = "3uTools folder not selected";
+    private static final String KEY_FOLDER = "threeutools_folder";
 
-    public CrmDevice readAndBuildCrmDevice(Path directory) throws IOException {
+    public CrmDevice createCrmDeviceFromDirectory() throws IOException {
         CrmDevice crmDevice = new CrmDevice();
 
-        deleteInfoFilesIfMultiple(directory);
+        Path directory = getSelectedDirectoryOrThrow();
 
         List<String> infoFile = loadInfoFileOrThrow(directory);
         fillFromInfoFile(infoFile, crmDevice);
@@ -28,13 +32,12 @@ public class ThreeUToolsService {
         DeviceCatalog deviceCatalog = new DeviceCatalog(devicesTablePath);
         fillFromCatalog(deviceCatalog, crmDevice);
 
-        String normalizedColor = CrmColorNormalizer.normalize(crmDevice.getColor());
-        crmDevice.setColor(normalizedColor);
+        if (!"iPhone Air".equals(crmDevice.getModel())) {
+            String normalizedColor = CrmColorNormalizer.normalize(crmDevice.getColor());
+            crmDevice.setColor(normalizedColor);
+        }
 
         crmDevice.setProductType(buildProductTypeWithModelCode(crmDevice));
-
-        infoFileManager.deleteAllInfoFiles(directory);
-
         return crmDevice;
     }
 
@@ -64,8 +67,8 @@ public class ThreeUToolsService {
                 continue;
             }
 
-            String key = parts[0].trim();
-            String value = parts[1].trim();
+            String key = (parts[0] == null) ? "" : parts[0];
+            String value = (parts[1] == null) ? "" : parts[1];
 
             switch (key) {
 
@@ -85,6 +88,8 @@ public class ThreeUToolsService {
                         salesModel = "";
                     }
 
+                    device.setCeCertificationMark(IphoneRegionUtil.isEuropeanDistribution(value));
+
                     device.setSalesModel(salesModel + " " + value);
                     String salesReg = Objects.requireNonNullElse(IphoneRegionUtil.getCountryByRegionInfo(value), "?");
                     device.setSalesRegion(salesReg);
@@ -92,6 +97,10 @@ public class ThreeUToolsService {
 
                 case "InternationalMobileEquipmentIdentity":
                     device.setImei(value);
+                    break;
+
+                case "InternationalMobileEquipmentIdentity2":
+                    device.setImei2(value);
                     break;
 
                 case "UniqueChipID":
@@ -127,12 +136,6 @@ public class ThreeUToolsService {
         }
     }
 
-    private void deleteInfoFilesIfMultiple(Path dir) {
-        if (infoFileManager.countInfoFiles(dir) >= 2) {
-            infoFileManager.deleteAllInfoFiles(dir);
-        }
-    }
-
     private Path resolveDevicesTablePath() throws IOException {
         Path appDir = Paths.get(System.getProperty("user.dir"));
         Path devicesTablePath = appDir
@@ -146,7 +149,7 @@ public class ThreeUToolsService {
     }
 
     private List<String> loadInfoFileOrThrow(Path directory) throws IOException {
-        return infoFileManager.readInfoFile(directory)
+        return new InfoFileManager().readInfoFile(directory)
                 .orElseThrow(() -> new IOException("Please connect your device first"));
     }
 
@@ -157,4 +160,18 @@ public class ThreeUToolsService {
         }
         return crmDevice.getProductType() + " (" + modelCode + ")";
     }
+
+    public Path getSelectedDirectoryOrThrow() {
+        String folder = SettingsService.loadString(KEY_FOLDER, "");
+
+        try {
+            Path p = Path.of(folder.trim());
+            if (Files.isDirectory(p)) return p;
+        } catch (Exception e) {
+            throw new SelectedDirectoryException(SELECTED_DIR_ERROR, e);
+        }
+
+        throw new SelectedDirectoryException(SELECTED_DIR_ERROR);
+    }
+
 }

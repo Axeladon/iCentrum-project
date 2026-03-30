@@ -1,5 +1,6 @@
 package org.example.scraper.service.settings;
 
+
 import java.util.prefs.Preferences;
 
 public class SettingsService {
@@ -20,5 +21,9 @@ public class SettingsService {
 
     public static String loadString(String key, String defaultValue) {
         return prefs.get(key, defaultValue); // load string
+    }
+
+    public static void clearAll() throws Exception {
+        prefs.clear();
     }
 }

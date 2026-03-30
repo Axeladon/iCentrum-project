@@ -1,4 +1,4 @@
-package org.example.scraper.service;
+package org.example.scraper.service.utils;
 
 public final class CrmColorNormalizer {
     public static String normalize(String color) {
@@ -6,7 +6,8 @@ public final class CrmColorNormalizer {
 
         return switch (color) {
             case "Space Black" -> "Black";
-            case "Sliver" -> "Silver";  //3uTools has an error since iPhone 17 PRO
+            case "Sliver" -> "Silver";  //3uTools has an error since iPhone 17
+            case "Laverder" -> "Lavender";  //3uTools has an error since iPhone 17
             default -> color;
         };
     }

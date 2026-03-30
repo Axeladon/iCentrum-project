@@ -130,7 +130,7 @@ public class CrmCodeUtil {
             case "iphone 16 pro max" -> 46;
             case "iphone 16e" -> 48;
             case "iphone 17" -> 49;
-            case "iphone 17 air" -> 50;
+            case "iphone air" -> 50;
             case "iphone 17 pro" -> 51;
             case "iphone 17 pro max" -> 52;
             default -> null;

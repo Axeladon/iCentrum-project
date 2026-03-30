@@ -1,5 +1,6 @@
 package org.example.scraper.service;
 
+import org.example.scraper.service.utils.CrmColorNormalizer;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;

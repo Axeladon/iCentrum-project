@@ -11,10 +11,13 @@ import javafx.scene.layout.Pane;
 import javafx.scene.layout.StackPane;
 import javafx.stage.Stage;
 import org.example.scraper.auth.Credentials;
+import org.example.scraper.service.ThreeUToolsService;
+import org.example.scraper.service.fs.InfoFileManager;
 import org.example.scraper.service.settings.SettingsService;
 import org.example.scraper.ui.controllers.SessionOrchestrator;
 import org.example.scraper.ui.views.*;
 
+import java.nio.file.Path;
 import java.util.EnumMap;
 import java.util.Map;
 
@@ -81,6 +84,10 @@ public class MultiWindowUI extends Application {
             case 5 -> switchTo(ViewName.TEST);
             default -> switchTo(ViewName.LOGIN);
         }
+
+        //delete all 3uTools _info.txt files
+        Path threeUToolsDir = new ThreeUToolsService().getSelectedDirectoryOrThrow();
+        new InfoFileManager().deleteAllInfoFiles(threeUToolsDir);
     }
 
     private void buildViews() {

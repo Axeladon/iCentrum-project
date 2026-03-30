@@ -1,7 +1,10 @@
 package org.example.scraper.service;
 
 import org.example.scraper.model.CrmDevice;
+import org.example.scraper.service.settings.SettingsService;
 import org.example.scraper.service.utils.CrmCodeUtil;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
 
 import java.net.URI;
 import java.net.URLEncoder;
@@ -9,45 +12,33 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
-public class CrmDeviceSender {
+public class CrmIntegrationService {
 
     private static final int UNCHECKED_PROBLEM_ID = 24;
-
+    private static final int SKIP_RESERVATION_PROBLEM_ID = 26;
     private final HttpClient client = HttpClient.newHttpClient();
 
-    private boolean ecidProblem = false;
-    private boolean salesRegionProblem = false;
+    public CrmIntegrationService() {}
 
-    /**
-     * Build regular (single) form fields without problems[]
-     */
+    private String getCookie() {
+        String phpsessid = SettingsService.loadString("threeutools_phpsessid", "").trim();
+        String hash = SettingsService.loadString("threeutools_hash", "").trim();
+
+        return  "PHPSESSID=" + phpsessid + "; hash=" + hash;
+    }
+
     private Map<String, String> buildForm(CrmDevice device) {
         Map<String, String> form = new HashMap<>();
 
         Integer modelCode  = CrmCodeUtil.getModelCode(device.getModel());
         String  memoryCode = CrmCodeUtil.getMemoryCode(device.getMemory());
         String  colorCode  = CrmCodeUtil.getColorCode(device.getColor());
-        Integer gradeCode  = CrmCodeUtil.getGradeCode(device.getGrade());
+        Integer gradeCode  = CrmCodeUtil.getGradeCode(getGrade(device.getHousingGrade(), device.getDisplayGrade()));
 
-        if (modelCode == null)  throw new IllegalArgumentException("Unknown model: " + device.getModel());
-        if (memoryCode == null) throw new IllegalArgumentException("Unknown memory: " + device.getMemory());
-        if (colorCode == null)  throw new IllegalArgumentException("Unknown color: " + device.getColor());
-        if (gradeCode == null)  throw new IllegalArgumentException("Unknown grade: " + device.getGrade());
-
-        String ecid = device.getEcid();
-        if (ecid == null || ecid.isBlank()) {
-            ecid = "?";
-            ecidProblem = true;
-        }
-
-        String salesRegion = device.getSalesRegion();
-        if ("?".equals(salesRegion)) {
-            salesRegionProblem = true;
-        }
+        if (modelCode == null) throw new IllegalArgumentException("Unknown model: " + device.getModel());
+        if (colorCode == null) throw new IllegalArgumentException("Unknown color: " + device.getColor());
 
         String bateria = "0";
         if (device.getBattery() >= 80) {
@@ -61,8 +52,8 @@ public class CrmDeviceSender {
         form.put("product_type", device.getProductType());
         form.put("sales_model", device.getSalesModel());
         form.put("serial_number", device.getSerialNumber());
-        form.put("ecid", ecid);
-        form.put("sales_region", salesRegion);
+        form.put("ecid", device.getEcid());
+        form.put("sales_region", device.getSalesRegion());
         form.put("seller_id", Integer.toString(device.getSellerCode()));
         form.put("price_buy", String.valueOf(device.getPricePln()));
         form.put("price_buy_euro", String.valueOf(device.getPriceEuro()));
@@ -88,9 +79,6 @@ public class CrmDeviceSender {
         return normalized.replace("\n", "<br>");
     }
 
-    /**
-     * Build body: regular fields + multiple problems[]
-     */
     private String buildRequestBody(Map<String, String> form, List<Integer> problems) {
 
         StringBuilder sb = new StringBuilder();
@@ -113,17 +101,12 @@ public class CrmDeviceSender {
             }
         }
 
-        // remove trailing '&'
         if (!sb.isEmpty()) { sb.setLength(sb.length() - 1); }
 
         return sb.toString();
     }
 
-    public HttpResponse<String> addDeviceDebug(CrmDevice device, List<Integer> selectedProblemIds, String cookies) throws Exception {
-
-        // Reset problem flags for every new request
-        ecidProblem = false;
-        salesRegionProblem = false;
+    public HttpResponse<String> sendDeviceToCrm(CrmDevice device, List<Integer> selectedProblemIds) throws Exception {
 
         String url = "https://icentrumserwis.pl/crm/add_device.php?opt=add_save";
 
@@ -135,13 +118,17 @@ public class CrmDeviceSender {
             selectedProblemIds.add(UNCHECKED_PROBLEM_ID);
         }
 
+        if (!device.isCeCertificationMark()) {
+            selectedProblemIds.add(SKIP_RESERVATION_PROBLEM_ID);
+        }
+
         Map<String, String> form = buildForm(device);
         String body = buildRequestBody(form, selectedProblemIds);
 
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(url))
                 .header("Content-Type", "application/x-www-form-urlencoded")
-                .header("Cookie", cookies)
+                .header("Cookie", getCookie())
                 .header("User-Agent", "Mozilla/5.0 DebugTestClient")
                 .header("Accept", "*/*")
                 .header("Origin", "https://icentrumserwis.pl")
@@ -149,21 +136,77 @@ public class CrmDeviceSender {
                 .POST(HttpRequest.BodyPublishers.ofString(body))
                 .build();
 
-        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-
-        System.out.println("===== CRM DEBUG RESPONSE =====");
-        System.out.println("URL       : " + url);
-        System.out.println("Status    : " + response.statusCode());
-
-        System.out.println("\n--- HEADERS ---");
-        response.headers().map().forEach((k, v) ->
-                System.out.println(k + ": " + String.join(", ", v))
-        );
-
-        System.out.println("\n--- BODY ---");
-        System.out.println(response.body());
-        System.out.println("===== END RESPONSE =====");
-
-        return response;
+        return client.send(request, HttpResponse.BodyHandlers.ofString());
     }
+
+    private HttpResponse<String> fetchCrmPage(String url) throws Exception {
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .header("Cookie", getCookie())
+                .header("User-Agent", "Mozilla/5.0 DebugTestClient")
+                .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+                .header("Referer", "https://icentrumserwis.pl/crm/")
+                .GET()
+                .build();
+
+        return client.send(request, HttpResponse.BodyHandlers.ofString());
+    }
+
+    private String getCrmPage(String url) {
+
+        //todo check codes
+
+        try {
+            return fetchCrmPage(url).body();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to fetch CRM page: " + url, e);
+        }
+    }
+
+    private Optional<String> extractOrderNumber(Document doc) {
+        if (!doc.select("table#sort td.dataTables_empty").isEmpty())
+            return Optional.empty();
+
+        org.jsoup.nodes.Element el = doc.selectFirst("table#sort tbody tr td nobr > b");
+        if (el == null) return Optional.empty();
+
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\d+").matcher(el.text());
+
+        return m.find() ? Optional.of(m.group()) : Optional.empty();
+    }
+
+    public String getOrderNumberByImei(String imei) throws Exception {
+        Document doc = Jsoup.parse(findPhonePageByImei(imei));
+
+        return extractOrderNumber(doc).orElse("");
+    }
+
+    public String getGrade(String housingGrade, String displayGrade) {
+        List<String> GRADES = List.of("A", "AB", "B", "C");
+
+        int hIndex = GRADES.indexOf(housingGrade);
+        int dIndex = GRADES.indexOf(displayGrade);
+
+        return GRADES.get(Math.max(hIndex, dIndex));
+    }
+
+    public Integer getBatteryByImei(String imei) throws Exception {
+        Document doc = Jsoup.parse(findPhonePageByImei(imei));
+        int batteryIndex = doc.select("#sort thead th").eachText().indexOf("Bat") - 1;
+        String battery = doc.selectFirst("#sort tbody tr").select("td").get(batteryIndex).ownText().trim();
+
+        return Integer.parseInt(battery.replace("<", "")); //<80 to 80
+    }
+
+    private String findPhonePageByImei(String imei) throws Exception {
+        String startPage = fetchCrmPage("https://icentrumserwis.pl/crm/devices_available.php?IMEI=" + imei).body();
+
+        String url = "https://icentrumserwis.pl/crm/devices_available.php" +
+                Jsoup.parse(startPage)
+                        .selectFirst("a[href*='IMEI=" + imei + "']")
+                        .attr("href");
+
+        return fetchCrmPage(url).body();
+    }
+
 }

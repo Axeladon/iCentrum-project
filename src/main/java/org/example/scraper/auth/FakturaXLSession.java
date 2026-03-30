@@ -139,7 +139,7 @@ public final class FakturaXLSession {
                     ? order.getOrderSubmissionDate()
                     : LocalDate.now();
 
-            String issueDate = LocalDate.now().toString();
+            String issueDate = LocalDate.now().plusDays(1).toString();
             String saleDate = sale.toString();
             String dueDate = sale.plusDays(7).toString();
 

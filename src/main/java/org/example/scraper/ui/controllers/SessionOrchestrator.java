@@ -135,11 +135,8 @@ public class SessionOrchestrator {
                 File file = FileUtils.getFileInDataFolder("order_html.html");
                 orderService.generateHtmlReport(file);
 
-                if (Desktop.isDesktopSupported()) {
-                    Desktop.getDesktop().browse(file.toURI());
-                } else {
-                    Platform.runLater(() -> onError.accept("Desktop is not supported on this platform"));
-                }
+                Desktop.getDesktop().browse(file.toURI());
+
                 return null;
             }
         };

@@ -35,6 +35,8 @@ public class OrderFetcher {
                     page.select("ul.list > li > span.js__copy-on-click.color_on-hover-highlight-bg").first()
             ).text());
             order.setPaymentStatus(page.select("div#order-paid-field a").text());
+            order.setPaymentMethod(extractPaymentMethod(page));
+            order.setEmail(extractEmail(page));
 
             parseAndSetOrderSubmissionDate(page, order); // Order submission date (YYYY-MM-DD)
 
@@ -148,6 +150,13 @@ public class OrderFetcher {
         return "Not found";
     }
 
+    private String extractEmail(Element root) {
+        Element mailLink = root.selectFirst("a[href^=mailto:]");
+        return mailLink != null
+                ? mailLink.attr("href").replaceFirst("(?i)^mailto:", "").trim()
+                : "Not found";
+    }
+
     /** Parses quantity like "2 szt." -> 2; defaults to 1 on failure. */
     private int extractQuantity(String text) {
         try {
@@ -206,4 +215,17 @@ public class OrderFetcher {
         return lineValue.divide(BigDecimal.valueOf(qty), 2, java.math.RoundingMode.HALF_UP);
     }
 
+    private String extractPaymentMethod(Document page) {
+        Elements paymentItems = page.select("li");
+        for (Element li : paymentItems) {
+            String liText = li.text();
+            if (liText.contains("Płatność")) {
+                Element strong = li.selectFirst("strong");
+                if (strong != null && !strong.text().isBlank()) {
+                    return strong.text().trim();
+                }
+            }
+        }
+        return "";
+    }
 }

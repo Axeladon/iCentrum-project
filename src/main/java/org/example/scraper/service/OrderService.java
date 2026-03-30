@@ -36,6 +36,6 @@ public class OrderService {
     }
 
     public void generateHtmlReport(File file) {
-        HtmlLabelGenerator.generateFileReport(order, file);
+        HtmlLabelGenerator.openLabelsInBrowser(order);
     }
 }

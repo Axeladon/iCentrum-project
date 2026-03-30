@@ -3,16 +3,17 @@ module org.example.scraper {
     requires javafx.fxml;
     requires org.jsoup;
     requires org.json;
-    requires com.fasterxml.jackson.databind;
-    requires java.desktop;
     requires java.net.http;
     requires static lombok;
-    requires java.prefs;
     requires com.google.gson;
     requires org.fxmisc.richtext;
     requires org.jetbrains.annotations;
     requires okhttp3;
     requires org.slf4j;
+    requires com.fasterxml.jackson.dataformat.xml;
+    requires com.fasterxml.jackson.databind;
+    requires java.desktop;
+    requires java.prefs;
 
     exports org.example.scraper.model;
     opens org.example.scraper.model to javafx.fxml;
@@ -27,4 +28,6 @@ module org.example.scraper {
     opens org.example.scraper.service.regon to com.fasterxml.jackson.databind;
     exports org.example.scraper.service;
     opens org.example.scraper.service to javafx.fxml;
+    exports org.example.scraper.service.utils;
+    opens org.example.scraper.service.utils to javafx.fxml;
 }

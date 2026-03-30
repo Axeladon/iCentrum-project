@@ -1,6 +1,5 @@
 package org.example.scraper.auth;
 
-
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.example.scraper.model.SiteId;
 
