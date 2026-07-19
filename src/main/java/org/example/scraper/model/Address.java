@@ -1,5 +1,8 @@
 package org.example.scraper.model;
 
+import lombok.Getter;
+
+@Getter
 public class Address {
     private final String streetAndNumber;   // "Ojcowska 51"
     private final String postalCode;        // "32-087"
@@ -21,19 +24,4 @@ public class Address {
         this.country = other.country;
     }
 
-    public String getStreetAndNumber() {
-        return streetAndNumber;
-    }
-
-    public String getPostalCode() {
-        return postalCode;
-    }
-
-    public String getCity() {
-        return city;
-    }
-
-    public String getCountry() {
-        return country;
-    }
 }

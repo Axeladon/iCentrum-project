@@ -11,13 +11,13 @@ import javafx.scene.layout.Pane;
 import javafx.scene.layout.StackPane;
 import javafx.stage.Stage;
 import org.example.scraper.auth.Credentials;
-import org.example.scraper.service.ThreeUToolsService;
-import org.example.scraper.service.fs.InfoFileManager;
+import org.example.scraper.service.HttpRetryClient;
 import org.example.scraper.service.settings.SettingsService;
 import org.example.scraper.ui.controllers.SessionOrchestrator;
 import org.example.scraper.ui.views.*;
 
-import java.nio.file.Path;
+import javafx.geometry.Pos;
+import javafx.scene.control.Label;
 import java.util.EnumMap;
 import java.util.Map;
 
@@ -27,7 +27,15 @@ public class MultiWindowUI extends Application {
 
     private final Map<ViewName, Pane> views = new EnumMap<>(ViewName.class);
     private StackPane content;
+
+    private final Label connectionStatus = new Label("No internet connection. Reconnecting...");
+
     private final SessionOrchestrator orchestrator = new SessionOrchestrator();
+    private final OrdersView orders = new OrdersView();
+    private final FakturaXlAdvInvView fakturaXlView = new FakturaXlAdvInvView();
+    private final UToolsView threeUToolsView = new UToolsView();
+    private final PackageView packageView = new PackageView();
+    private final TestView test = new TestView();
 
     @Override
     public void start(Stage primaryStage) {
@@ -38,7 +46,7 @@ public class MultiWindowUI extends Application {
 
         // --- LEFT MENU ---
         ListView<String> menu = new ListView<>();
-        menu.getItems().addAll("Login", "Orders", "FakturaXL", "3uTools", "Packing", "...");
+        menu.getItems().addAll("Login", "Orders", "Adv. Invoice", "3uTools", "Packing", "...");
         menu.setPrefWidth(140);
 
         // Listener that reacts to menu selection
@@ -50,7 +58,6 @@ public class MultiWindowUI extends Application {
 
             // Switch to proper view
             switch (index) {
-                case 0 -> switchTo(ViewName.LOGIN);
                 case 1 -> switchTo(ViewName.ORDERS);
                 case 2 -> switchTo(ViewName.FAKTURAXL);
                 case 3 -> switchTo(ViewName.THREEUTOOLS);
@@ -60,8 +67,18 @@ public class MultiWindowUI extends Application {
             }
         });
 
-        // Build all views (panes)
+        setupConnectionStatus();
+
+        HttpRetryClient.setConnectionListener(connected ->
+                Platform.runLater(() -> {
+                    connectionStatus.setVisible(!connected);
+                    packageView.onConnectionChanged(connected);
+                })
+        );
+
         buildViews();
+
+        content.getChildren().add(connectionStatus);
 
         root.setLeft(menu);
         root.setCenter(content);
@@ -71,12 +88,15 @@ public class MultiWindowUI extends Application {
         primaryStage.setScene(scene);
         primaryStage.show();
 
+        primaryStage.setOnCloseRequest(e -> {
+            stopAllViews();
+        });
+
         // ---- RESTORE LAST SELECTED MENU ITEM ----
         int savedIndex = SettingsService.loadInt("selectedMenuIndex", 0);
         menu.getSelectionModel().select(savedIndex);
 
         switch (savedIndex) {
-            case 0 -> switchTo(ViewName.LOGIN);
             case 1 -> switchTo(ViewName.ORDERS);
             case 2 -> switchTo(ViewName.FAKTURAXL);
             case 3 -> switchTo(ViewName.THREEUTOOLS);
@@ -84,10 +104,19 @@ public class MultiWindowUI extends Application {
             case 5 -> switchTo(ViewName.TEST);
             default -> switchTo(ViewName.LOGIN);
         }
+    }
 
-        //delete all 3uTools _info.txt files
-        Path threeUToolsDir = new ThreeUToolsService().getSelectedDirectoryOrThrow();
-        new InfoFileManager().deleteAllInfoFiles(threeUToolsDir);
+    private void setupConnectionStatus() {
+        connectionStatus.setVisible(false);
+        connectionStatus.setStyle(
+                "-fx-background-color: #d97706;" +
+                        "-fx-text-fill: white;" +
+                        "-fx-padding: 8 12;" +
+                        "-fx-background-radius: 5;"
+        );
+
+        StackPane.setAlignment(connectionStatus, Pos.BOTTOM_RIGHT);
+        StackPane.setMargin(connectionStatus, new Insets(10));
     }
 
     private void buildViews() {
@@ -127,7 +156,6 @@ public class MultiWindowUI extends Application {
         );
 
         // Orders view
-        final OrdersView orders = new OrdersView();
         orders.bind(
                 // onCollect
                 orderId -> orchestrator.collectOrderGuarded(
@@ -157,8 +185,7 @@ public class MultiWindowUI extends Application {
                 tag -> orchestrator.applyOrderTag(tag, orders::setOutputText, this::showWarn)
         );
 
-        // FakturaXL view
-        final FakturaXlView fakturaXlView = new FakturaXlView();
+        // FakturaXL AdvanceInvoice view
         fakturaXlView.bind(
                 rawInput -> orchestrator.handleFakturaXlRequest(
                         rawInput,          // we pass it as is: "123123  123234 123456"
@@ -169,15 +196,6 @@ public class MultiWindowUI extends Application {
                         }
                 )
         );
-
-        // 3uTools view
-        final ThreeUToolsView threeUToolsView = new ThreeUToolsView();
-
-        // Package view
-        final PackageView packageView = new PackageView();
-
-        // Test view
-        final TestView test = new TestView();
 
         // Register all views
         addView(ViewName.LOGIN, login.getRoot());
@@ -197,9 +215,26 @@ public class MultiWindowUI extends Application {
     }
 
     private void switchTo(ViewName name) {
-        // Hide all views except the requested one
+        stopAllViews();
+
         views.values().forEach(p -> p.setVisible(false));
         views.getOrDefault(name, views.get(ViewName.LOGIN)).setVisible(true);
+
+        startView(name);
+    }
+
+    private void startView(ViewName view) {
+        switch (view) {
+            case PACKING -> packageView.startAutoRefresh();
+            case THREEUTOOLS -> threeUToolsView.startAutoRefresh();
+            default -> {
+            }
+        }
+    }
+
+    private void stopAllViews() {
+        packageView.stopAutoRefresh();
+        threeUToolsView.stopAutoRefresh();
     }
 
     private void showWarn(String msg) {

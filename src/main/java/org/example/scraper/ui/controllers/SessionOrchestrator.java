@@ -3,32 +3,31 @@ package org.example.scraper.ui.controllers;
 import javafx.application.Platform;
 import javafx.concurrent.Task;
 import org.example.scraper.auth.*;
+import org.example.scraper.model.InvoiceResponse;
 import org.example.scraper.model.Order;
 import org.example.scraper.model.SiteId;
-import org.example.scraper.service.ShoperCommentsWriter;
-import org.example.scraper.service.utils.FileUtils;
-import org.example.scraper.service.OrderFetcher;
-import org.example.scraper.service.OrderService;
+import org.example.scraper.service.*;
+import org.example.scraper.service.shoper.ShoperCommentsService;
 import org.jsoup.nodes.Document;
 
-import java.awt.Desktop;
-import java.io.File;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
 
 public class SessionOrchestrator {
-    final String TOKEN = "TOKEN";
-    FakturaXLSession fakturaXlSession = new FakturaXLSession(TOKEN);
 
     private static final String ORDER_PAGE_URL_PREFIX = "https://applecentrum-612788.shoparena.pl/admin/orders/view/id/";
     private static final String DEFAULT_PROBE_ORDER_ID = "123456";
     private static final String TWO_FA_URL = "https://applecentrum-612788.shoparena.pl/admin/auth/totp-sms";
 
     private final SessionManager session = SessionManager.getInstance();
-    private final OrderService orderService = new OrderService(new OrderFetcher());
+    private final OrderService orderService = new OrderService();
+
+    InvoiceService invoiceService = new InvoiceService();
 
     private Credentials shoperCredentials = CredentialsManager.loadCredentials(SiteId.SHOPER.getJsonKey());
+
+    private Order lastOrder;
 
     // ---- Credentials API -----------------------------------------------------
 
@@ -42,7 +41,6 @@ public class SessionOrchestrator {
     }
 
     // ---- Auth / 2FA flows ----------------------------------------------------
-
     public void loginFlow(Credentials creds, boolean remember, Consumer<AccessStatus> onStatus, Consumer<String> onError) {
         if (remember) saveCredentials(creds); else shoperCredentials = creds;
 
@@ -95,7 +93,8 @@ public class SessionOrchestrator {
                     throw new IllegalStateException("Access denied: " + status);
                 }
 
-                String text = orderService.fetchAndGetOrderInfo(orderId);
+                lastOrder = orderService.getOrder(orderId);
+                String text = orderService.generatePackingMessage(lastOrder, " ");
                 Platform.runLater(() -> onOutput.accept(text));
                 return null;
             }
@@ -128,15 +127,12 @@ public class SessionOrchestrator {
                 }
 
                 // Step 1: collect to initialize internal state for report
-                String text = orderService.fetchAndGetOrderInfo(orderId);
+                Order order = orderService.getOrder(orderId);
+                String text = orderService.generatePackingMessage(order, " ");
                 Platform.runLater(() -> onOutput.accept(text));
 
                 // Step 2: generate report and open
-                File file = FileUtils.getFileInDataFolder("order_html.html");
-                orderService.generateHtmlReport(file);
-
-                Desktop.getDesktop().browse(file.toURI());
-
+                orderService.generateHtmlLabel(order);
                 return null;
             }
         };
@@ -146,13 +142,16 @@ public class SessionOrchestrator {
     }
 
     public void applyOrderTag(String tag, Consumer<String> onOutput, Consumer<String> onError) {
+
         try {
-            String text = orderService.getOrderInfo(tag);
-            if (text == null || text.isBlank()) {
+            if (lastOrder == null) {
                 onError.accept("Collect the order first, then use tag buttons");
                 return;
             }
+
+            String text = orderService.generatePackingMessage(lastOrder, tag);
             onOutput.accept(text);
+
         } catch (Exception ex) {
             onError.accept("Failed to apply tag: " + rootMessage(ex));
         }
@@ -224,14 +223,17 @@ public class SessionOrchestrator {
                         continue;
                     }
 
-                    // order data collection
-                    orderService.fetchAndGetOrderInfo(orderId);
-                    Order order = orderService.getOrder();
+                    Order order = orderService.getOrder(orderId);
 
-                    List<String> ids = fakturaXlSession.createMarginAndVatInvoice(order, orderId);
-                    Platform.runLater(() -> onError.accept(buildFakturaMessage(ids)));
+                    String commentsText = "Trzeba wystawic FK do:\n";
+                    List<InvoiceResponse> invRespDtos = invoiceService.generatePhoneAndAccessoriesAdvanceInvoice(order);
+                    Platform.runLater(() -> onError.accept(buildFakturaMessage(invRespDtos)));
+                    for (InvoiceResponse irDto : invRespDtos) {
+                        commentsText += irDto.getDokumentNr();
+                        commentsText += ", ID: " + irDto.getDokumentId() + "\n";
+                    }
 
-                    ShoperCommentsWriter.addPrivateOrderNote(orderId, "Trzeba wystawic FK");
+                    ShoperCommentsService.writePrivateOrderNote(orderId, commentsText);
 
                 } catch (Exception e) {
                     Platform.runLater(() ->
@@ -242,14 +244,20 @@ public class SessionOrchestrator {
         }, "faktura-batch").start();
     }
 
-    private String buildFakturaMessage(List<String> ids) {
-        if (ids == null || ids.isEmpty()) {
-            return "Nie udało się odczytać numeru dokumentu.";
+    private String buildFakturaMessage(List<InvoiceResponse> invoiceResponses) {
+        StringBuilder message;
+
+        if (invoiceResponses == null) return "Nie udało się odczytać numeru dokumentu.";
+
+        if (invoiceResponses.size() > 1) {
+            message = new StringBuilder("Utworzono faktury: ");
+            for (InvoiceResponse irDto : invoiceResponses) {
+                message.append(irDto.getDokumentNr()).append(", ");
+            }
+        } else {
+            message = new StringBuilder("Utworzono fakturę: " + invoiceResponses.get(0));
         }
-        if (ids.size() == 1) {
-            return "Utworzono fakturę: " + ids.get(0);
-        }
-        return "Utworzono faktury: " + String.join(", ", ids);
+        return message.toString();
     }
 }
 

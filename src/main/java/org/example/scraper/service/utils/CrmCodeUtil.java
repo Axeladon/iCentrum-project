@@ -77,6 +77,7 @@ public class CrmCodeUtil {
             case "cosmic orange" -> "37";
             case "deep blue" -> "38";
             case "space black" -> "39";
+            case "sage" -> "40";
             default -> null;
         };
     }

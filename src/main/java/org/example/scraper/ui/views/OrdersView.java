@@ -7,6 +7,7 @@ import javafx.scene.input.ClipboardContent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
+import org.example.scraper.service.OrderService;
 
 import java.util.function.Consumer;
 
@@ -29,17 +30,17 @@ public class OrdersView {
         output.setStyle("-fx-border-color: gray; -fx-border-width: 2; -fx-padding: 5; -fx-font-family: 'Consolas','Monospaced';");
 
         Button collectBtn = new Button("Collect");
-        Button generateBtn = new Button("Generate report");
-        Button copyBtn = new Button("Copy");
+        Button generateBtn = new Button("Create label");
+        Button sendBtn = new Button("Send");
 
         collectBtn.setMaxWidth(Double.MAX_VALUE);
         generateBtn.setMaxWidth(Double.MAX_VALUE);
-        copyBtn.setMaxWidth(Double.MAX_VALUE);
+        sendBtn.setMaxWidth(Double.MAX_VALUE);
 
-        HBox row = new HBox(10, collectBtn, generateBtn, copyBtn);
+        HBox row = new HBox(10, collectBtn, generateBtn, sendBtn);
         HBox.setHgrow(collectBtn, Priority.ALWAYS);
         HBox.setHgrow(generateBtn, Priority.ALWAYS);
-        HBox.setHgrow(copyBtn, Priority.ALWAYS);
+        HBox.setHgrow(sendBtn, Priority.ALWAYS);
 
         Button a = new Button("u Maksa");
         Button b = new Button("na czyszczeniu");
@@ -56,10 +57,22 @@ public class OrdersView {
         collectBtn.setOnAction(e -> {
             if (onCollect != null) onCollect.accept(input.getText().trim());
         });
+
         generateBtn.setOnAction(e -> {
             if (onGenerateReport != null) onGenerateReport.accept(input.getText().trim());
         });
-        copyBtn.setOnAction(e -> copyOutput());
+
+        sendBtn.setOnAction(event -> {
+            String text = output.getText().trim();
+
+            if (text.isEmpty()) {
+                onError.accept("An empty field");
+                return;
+            }
+
+            OrderService orderService = new OrderService();
+            orderService.sendMessageToSlack(text);
+        });
 
         a.setOnAction(e -> { if (onTag != null) onTag.accept("u Maksa"); });
         b.setOnAction(e -> { if (onTag != null) onTag.accept("na czyszczeniu"); });

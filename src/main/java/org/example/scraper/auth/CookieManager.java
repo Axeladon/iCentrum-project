@@ -2,6 +2,7 @@ package org.example.scraper.auth;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.example.scraper.model.SiteId;
+import org.example.scraper.service.settings.SettingsService;
 
 import java.io.*;
 import java.util.*;
@@ -38,6 +39,13 @@ public final class CookieManager {
     public synchronized Map<String, String> getAll(SiteId siteId) {
         Map<String, String> cookies = stores.get(siteId);
         return (cookies == null) ? Collections.emptyMap() : new HashMap<>(cookies);
+    }
+
+    public String getCrmCookie() {
+        String phpsessid = SettingsService.loadString("threeutools_phpsessid", "").trim();
+        String hash = SettingsService.loadString("threeutools_hash", "").trim();
+
+        return "PHPSESSID=" + phpsessid + "; hash=" + hash;
     }
 
     private void saveToFile() throws IOException {

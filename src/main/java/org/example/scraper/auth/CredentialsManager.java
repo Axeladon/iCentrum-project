@@ -12,6 +12,7 @@ import java.nio.file.Files;
 
 public class CredentialsManager {
     private static final String CREDENTIALS_FILE = "credentials.json";
+    private static final String TOKEN = "TOKEN";
 
     // Load credentials for a specific account (e.g., "shoper", "crm")
     @NotNull
@@ -67,5 +68,9 @@ public class CredentialsManager {
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+    public static String getFakturaxlToken() {
+        return TOKEN;
     }
 }

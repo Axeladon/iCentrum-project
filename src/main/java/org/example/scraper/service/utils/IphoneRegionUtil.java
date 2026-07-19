@@ -10,7 +10,7 @@ public final class IphoneRegionUtil {
     private static final Set<String> EUROPE_REGION_CODES = Set.of(
             "PX", "ZD", "DN", "D", "F", "FB", "FD", "FS", "GR", "IP",
             "KN", "KS", "QN", "QL", "PL", "PM", "PO", "RO", "SL", "SE",
-            "HX", "B", "SX", "RX", "ET", "CZ", "LT", "LV"
+            "HX", "B", "SX", "RX", "ET", "CZ", "LT", "LV", "GH", "ZF", "CN"
     );
 
     private static final Map<String, String> REGION_CODE_TO_COUNTRY;
@@ -18,14 +18,16 @@ public final class IphoneRegionUtil {
     static {
         Map<String, String> map = new HashMap<>();
 
-        map.put("AB", "UAE");
-        map.put("AE", "UAE");
+        map.put("AA", "United Arab Emirates");
+        map.put("AB", "United Arab Emirates");
+        map.put("AE", "United Arab Emirates");
         map.put("AH", "Bahrain, Kuwait");
         map.put("B", "United Kingdom, Ireland");
         map.put("BZ", "Brazil");
         map.put("BR", "Brazil");
         map.put("CH", "China");
         map.put("CZ", "Czech Republic");
+        map.put("CN", "Slovakia");
         map.put("DN", "Austria, Germany, Netherlands");
         map.put("E", "Mexico");
         map.put("EE", "Estonia");
@@ -35,6 +37,7 @@ public final class IphoneRegionUtil {
         map.put("FD", "Austria, Switzerland, Liechtenstein");
         map.put("FS", "Finland");
         map.put("GR", "Greece");
+        map.put("GH", "Hungary");
         map.put("HB", "Israel");
         map.put("HN", "India");
         map.put("HX", "Poland");
@@ -84,6 +87,7 @@ public final class IphoneRegionUtil {
         map.put("ZA", "Singapore");
         map.put("ZD", "France, Germany");
         map.put("ZP", "Hong Kong, Macau");
+        map.put("ZF", "France, United Kingdom");
         map.put("ZK", "South Korea");
         map.put("ZQ", "Middle East (various)");
         map.put("ZG", "China (special markets)");

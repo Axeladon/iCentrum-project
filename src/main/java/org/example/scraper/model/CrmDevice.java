@@ -16,6 +16,8 @@ public class CrmDevice {
     private String imei2;
     private Integer battery;
 
+    private String document; //FM or FV
+
     private boolean unchecked;
     private boolean box;
     private String invoiceDate; // "2025-11"

@@ -10,7 +10,6 @@ module org.example.scraper {
     requires org.jetbrains.annotations;
     requires okhttp3;
     requires org.slf4j;
-    requires com.fasterxml.jackson.dataformat.xml;
     requires com.fasterxml.jackson.databind;
     requires java.desktop;
     requires java.prefs;
@@ -24,10 +23,18 @@ module org.example.scraper {
     exports org.example.scraper.ui;
     opens org.example.scraper.ui to javafx.fxml;
 
-    exports org.example.scraper.service.regon;
-    opens org.example.scraper.service.regon to com.fasterxml.jackson.databind;
     exports org.example.scraper.service;
     opens org.example.scraper.service to javafx.fxml;
     exports org.example.scraper.service.utils;
     opens org.example.scraper.service.utils to javafx.fxml;
+    exports org.example.scraper.service.threeutools;
+    opens org.example.scraper.service.threeutools to javafx.fxml;
+    exports org.example.scraper.service.shoper;
+    opens org.example.scraper.service.shoper to javafx.fxml;
+    exports org.example.scraper.model.dto;
+    opens org.example.scraper.model.dto to javafx.fxml;
+    exports org.example.scraper.service.shoper.parser;
+    opens org.example.scraper.service.shoper.parser to javafx.fxml;
+    exports org.example.scraper.service.crm;
+    opens org.example.scraper.service.crm to javafx.fxml;
 }

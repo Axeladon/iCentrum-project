@@ -1,13 +1,13 @@
 package org.example.scraper.service;
 
-import org.example.scraper.dto.InvoiceResponseDto;
+import lombok.Getter;
+import org.example.scraper.auth.CredentialsManager;
 import org.example.scraper.model.CrmDevice;
+import org.example.scraper.model.DeviceModel;
 import org.example.scraper.model.Order;
-import org.example.scraper.model.PhoneModel;
-import org.xml.sax.InputSource;
+import org.example.scraper.service.crm.CrmIntegrationService;
+import org.example.scraper.service.utils.InvoiceBatteryFormat;
 
-import javax.xml.parsers.DocumentBuilderFactory;
-import java.io.StringReader;
 import java.math.BigDecimal;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -15,50 +15,410 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.List;
 
 public class InvoiceGenerator {
     private final HttpClient httpClient = HttpClient.newHttpClient();
+    private final CrmIntegrationService crmIntegrationService = new CrmIntegrationService();
 
     private static final String BIURO_MARZA = "140873";
     private static final String BIURO_VAT = "140881";
 
     private static final Integer CHARGER_PRICE = 100;
 
-    private final String apiToken;
+    @Getter
+    public enum DocumentType {
+        FAKTURA_VAT(0, "Faktura VAT"),
+        FAKTURA_KONCOWA(3, "Faktura końcowa"),
+        FAKTURA_MARZA(5, "Faktura marża"),
+        FAKTURA_ZALICZKOWA(11, "Faktura zaliczkowa");
 
-    public InvoiceGenerator(String apiToken) {
-        this.apiToken = apiToken;
+        private final int code;
+        private final String description;
+
+        DocumentType(int code, String description) {
+            this.code = code;
+            this.description = description;
+        }
     }
 
-    public void generatePhoneAndAccessoriesAdvanceInvoice(Order order) throws Exception {
-        int chargerCount = 0;
+    public String generatePhoneFinalInvoice(
+            Order order,
+            DeviceModel deviceModel,
+            String invoiceId,
+            boolean batteryCommunicate,
+            CrmDevice crmDevice
+    ) throws Exception {
+        BigDecimal price = calculateDevicePrice(deviceModel);
 
-        for (PhoneModel phoneModel : order.getPhoneModelList()) {
-            generatePhoneAdvanceInvoice(order, phoneModel);
-            if (phoneModel.isChargerIncluded()) chargerCount++;
-            Thread.sleep(2100);
-        }
-        generateChargerAdvanceInvoice(order, chargerCount);
+        String positionXml = buildInvoicePosition(
+                buildDeviceDescription(order, deviceModel, crmDevice, batteryCommunicate, true),
+                "1.000",
+                0,
+                price
+        );
+
+        String xml = buildBaseInvoiceXml(
+                order,
+                DocumentType.FAKTURA_KONCOWA,
+                BIURO_MARZA,
+                price,
+                buildMarginNote(order),
+                false,
+                buildRelationXml(invoiceId) + buildMarginXml(),
+                positionXml
+        );
+
+        return sendInvoiceRequest(xml);
     }
 
-    public List<InvoiceResponseDto> generatePhoneMarginAndAccessoriesInvoice(Order order) throws Exception {
-        List<InvoiceResponseDto> invoiceResponseDtoList = new ArrayList<>();
+    public String generateChargerFinalInvoice(
+            Order order,
+            int chargerCount,
+            String invoiceId,
+            boolean appleWatchCharger
+    ) throws Exception {
 
-        int chargerCount = 0;
+        BigDecimal price = calculateChargerPrice(chargerCount);
 
-        for (PhoneModel phoneModel : order.getPhoneModelList()) {
-            invoiceResponseDtoList.add(generateIPhoneMarginInvoice(order, phoneModel));
-            if (phoneModel.isChargerIncluded()) chargerCount++;
-            Thread.sleep(2100);
+        String positionXml = buildInvoicePosition(
+                buildChargerDescription(appleWatchCharger),
+                String.valueOf(chargerCount),
+                23,
+                price
+        );
+
+        String xml = buildBaseInvoiceXml(
+                order,
+                DocumentType.FAKTURA_KONCOWA,
+                BIURO_VAT,
+                price,
+                "Zamówienie #" + order.getOrderId(),
+                false,
+                buildRelationXml(invoiceId) + buildZeroMarginXml(),
+                positionXml
+        );
+
+        return sendInvoiceRequest(xml);
+    }
+
+    public String generateIPhoneVatInvoice() {
+        return "";
+    }
+
+    public String generateIPhoneMarginInvoice(
+            Order order,
+            DeviceModel deviceModel,
+            boolean batReplMessage,
+            CrmDevice crmDevice
+    ) throws Exception {
+        BigDecimal price = calculateDevicePrice(deviceModel);
+
+        String positionXml = buildInvoicePosition(
+                buildDeviceDescription(order, deviceModel, crmDevice, batReplMessage, false),
+                "1.000",
+                0,
+                price
+        );
+
+        String xml = buildBaseInvoiceXml(
+                order,
+                DocumentType.FAKTURA_MARZA,
+                BIURO_MARZA,
+                price,
+                buildMarginNote(order),
+                false,
+                "",
+                positionXml
+        );
+
+        return sendInvoiceRequest(xml);
+    }
+
+    public String generateChargerVatInvoice(Order order, int chargerCount, boolean appleWatchCharger) throws Exception {
+        BigDecimal price = calculateChargerPrice(chargerCount);
+
+        String positionXml = buildInvoicePosition(
+                buildChargerDescription(appleWatchCharger),
+                String.valueOf(chargerCount),
+                23,
+                price
+        );
+
+        String xml = buildBaseInvoiceXml(
+                order,
+                DocumentType.FAKTURA_VAT,
+                BIURO_VAT,
+                price,
+                "zamówienie # " + order.getOrderId(),
+                false,
+                "",
+                positionXml
+        );
+
+        return sendInvoiceRequest(xml);
+    }
+
+    public String generatePhoneAdvanceInvoice(Order order, DeviceModel deviceModel) throws Exception {
+        BigDecimal price = calculateDevicePrice(deviceModel);
+
+        String positionXml = buildInvoicePosition(
+                buildAdvanceDeviceDescription(order, deviceModel),
+                "1.000",
+                0,
+                price
+        );
+
+        String xml = buildBaseInvoiceXml(
+                order,
+                DocumentType.FAKTURA_ZALICZKOWA,
+                BIURO_MARZA,
+                price,
+                buildMarginNote(order),
+                true,
+                buildMarginXml(),
+                positionXml
+        );
+
+        return sendInvoiceRequest(xml);
+    }
+
+    public String generateChargerAdvanceInvoice(Order order, int chargerCount) throws Exception {
+        BigDecimal price = calculateChargerPrice(chargerCount);
+
+        String positionXml = buildInvoicePosition(
+                buildChargerDescription(false, true, order),
+                String.valueOf(chargerCount),
+                23,
+                price
+        );
+
+        String xml = buildBaseInvoiceXml(
+                order,
+                DocumentType.FAKTURA_ZALICZKOWA,
+                BIURO_VAT,
+                price,
+                "",
+                true,
+                "",
+                positionXml
+        );
+
+        return sendInvoiceRequest(xml);
+    }
+
+    private String buildDeviceDescription(
+            Order order,
+            DeviceModel deviceModel,
+            CrmDevice crmDevice,
+            boolean batReplMessage,
+            boolean includeOrderLine
+    ) throws Exception {
+        if (isAppleWatch(crmDevice)) {
+            return buildAppleWatchDescription(order, deviceModel, crmDevice, includeOrderLine);
         }
 
-        if (!(chargerCount == 0)) {
-            invoiceResponseDtoList.add(generateChargerVatInvoice(order, chargerCount));
+        return buildPhoneDescription(order, deviceModel, crmDevice, batReplMessage, includeOrderLine);
+    }
+
+    private String buildPhoneDescription(
+            Order order,
+            DeviceModel deviceModel,
+            CrmDevice crmDevice,
+            boolean batReplMessage,
+            boolean includeOrderLine
+    ) throws Exception {
+        String imei = crmDevice.getImei();
+        String imei2 = crmDevice.getImei2();
+
+        String model = upper(deviceModel.getName());
+        String memory = deviceModel.getMemory();
+        String color = upper(crmDevice.getColor());
+        String phoneName = model + " " + memory + " " + color;
+
+        Integer battery = crmIntegrationService.getBatteryByImei(imei);
+
+        String batteryVariant = InvoiceBatteryFormat.batteryFormat(deviceModel.getBattery());
+        String batMess = batReplMessage ? " (KOMUNIKAT)" : "";
+
+        String description =
+                "TELEFON KOMÓRKOWY\n" +
+                        phoneName + "\n" +
+                        batteryVariant + battery + "%" + batMess + "\n" +
+                        "IMEI: " + imei + "\n" +
+                        buildImei2Line(imei2) +
+                        "GWARANCJA SERWISOWA 24 MIESIĄCE";
+
+        if (includeOrderLine) {
+            description += "\nZamówienie #" + order.getOrderId() + " icentrumsklep.pl";
         }
 
-        return invoiceResponseDtoList;
+        return description;
+    }
+
+    private String buildAppleWatchDescription(Order order, DeviceModel deviceModel, CrmDevice crmDevice, boolean includeOrderLine) {
+        String model = upper(deviceModel.getName());
+        String memory = deviceModel.getMemory();
+        String color = upper(crmDevice.getColor());
+
+        String watchName = (model + " " + memory + " " + color).trim();
+
+        String description =
+                watchName + "\n" +
+                        "NR SERYJNY: " +  crmDevice.getImei() + "\n" +
+                        "GWARANCJA SERWISOWA 24 MIESIĄCE";
+
+        if (includeOrderLine) {
+            description += "\nZamówienie #" + order.getOrderId() + " icentrumsklep.pl";
+        }
+
+        return description;
+    }
+
+    private String buildAdvanceDeviceDescription(Order order, DeviceModel deviceModel) {
+        String model = upper(deviceModel.getName());
+        String memory = deviceModel.getMemory();
+        String color = upper(deviceModel.getColor());
+
+        return model + " " + memory + " " + color + "\n" + "zamówienie #" + order.getOrderId() + " icentrumsklep.pl";
+    }
+
+    private String buildChargerDescription(boolean appleWatchCharger) {
+        return appleWatchCharger
+                ? "BEZPRZEWODOWA ŁADOWARKA BASEUS"
+                : "ŁADOWARKA + KABEL BASEUS";
+    }
+
+    private String buildChargerDescription(boolean appleWatchCharger, boolean includeOrderLine, Order order) {
+        String description = buildChargerDescription(appleWatchCharger);
+
+        if (includeOrderLine) {
+            description += "\nzamówienie #" + order.getOrderId() + " icentrumsklep.pl";
+        }
+
+        return description;
+    }
+
+    private String buildInvoicePosition(String name, String quantity, int vat, BigDecimal grossValue) {
+        return "<faktura_pozycje>" +
+                "<nazwa>" + name + "</nazwa>" +
+                "<ilosc>" + quantity + "</ilosc>" +
+                "<jm>szt.</jm>" +
+                "<vat>" + vat + "</vat>" +
+                "<symbol_gtu>6</symbol_gtu>" +
+                "<wartosc_brutto>" + grossValue + "</wartosc_brutto>" +
+                "</faktura_pozycje>";
+    }
+
+    private String buildBaseInvoiceXml(
+            Order order,
+            DocumentType documentType,
+            String departmentId,
+            BigDecimal paidAmount,
+            String note,
+            boolean includePaymentDeadline,
+            String extraXml,
+            String positionXml
+    ) {
+        return "<dokument>" +
+                "<api_token>" + CredentialsManager.getFakturaxlToken() + "</api_token>" +
+                "<typ_faktury>" + documentType.getCode() + "</typ_faktury>" +
+                "<typ_faktur_podtyp>0</typ_faktur_podtyp>" +
+                "<obliczaj_sume_wartosci_faktury_wg>0</obliczaj_sume_wartosci_faktury_wg>" +
+                "<numer_faktury></numer_faktury>" +
+                "<data_wystawienia>" + LocalDate.now() + "</data_wystawienia>" +
+                "<data_sprzedazy>" + order.getOrderSubmissionDate() + "</data_sprzedazy>" +
+                "<miejsce_wystawienia>Wrocław</miejsce_wystawienia>" +
+                buildPaymentDeadlineXml(includePaymentDeadline) +
+                "<data_oplacenia>" + order.getOrderSubmissionDate() + "</data_oplacenia>" +
+                "<status>2</status>" +
+                "<kwota_oplacona>" + paidAmount + "</kwota_oplacona>" +
+                "<uwagi>" + note + "</uwagi>" +
+                "<waluta>PLN</waluta>" +
+                "<kurs>1</kurs>" +
+                "<rodzaj_platnosci>" + mapPaymentMethod(order.getPaymentMethod()) + "</rodzaj_platnosci>" +
+                "<jezyk>0</jezyk>" +
+                "<szablon>0</szablon>" +
+                "<imie_nazwisko_wystawcy></imie_nazwisko_wystawcy>" +
+                "<id_dzialy_firmy>" + departmentId + "</id_dzialy_firmy>" +
+                "<wyslij_dokument_do_klienta_emailem>0</wyslij_dokument_do_klienta_emailem>" +
+                "<obliczaj_wartosc_faktury_od>0</obliczaj_wartosc_faktury_od>" +
+                extraXml +
+                buildPurchaserXml(order) +
+                positionXml +
+                "</dokument>";
+    }
+
+    private String buildPurchaserXml(Order order) {
+        String purchaser = "".equals(order.getNip()) ? order.getClientName() : order.getCompanyName();
+
+        return "<nabywca>" +
+                "<firma_lub_osoba_prywatna>0</firma_lub_osoba_prywatna>" +
+                "<nazwa>" + purchaser + "</nazwa>" +
+                "<email>" + order.getEmail() + "</email>" +
+                "<telefon> </telefon>" +
+                "<ulica_i_numer>" + order.getAddress().getStreetAndNumber() + "</ulica_i_numer>" +
+                "<kod_pocztowy>" + order.getAddress().getPostalCode() + "</kod_pocztowy>" +
+                "<miejscowosc>" + order.getAddress().getCity() + "</miejscowosc>" +
+                "<kraj>PL</kraj>" +
+                "<nip>" + order.getNip() + "</nip>" +
+                "</nabywca>";
+    }
+
+    private String buildMarginNote(Order order) {
+        String note = "Procedura marży - towary używane";
+        String publicNote = order.getNotes().getAdminPublicNoteOrDefault();
+
+        if (publicNote != null && publicNote.toLowerCase().contains("pakiet serwisowy")) {
+            note += "\nPakiet serwisowy – jednorazowa, bezpłatna wymiana baterii w okresie trwania gwarancji";
+        }
+
+        return note;
+    }
+
+    private String buildMarginXml() {
+        return "<typ_marzy>2</typ_marzy>" +
+                "<wartosc_marzy_brutto>0</wartosc_marzy_brutto>" +
+                "<marza_stawka_vat>0</marza_stawka_vat>";
+    }
+
+    private String buildZeroMarginXml() {
+        return "<wartosc_marzy_brutto>0</wartosc_marzy_brutto>" +
+                "<marza_stawka_vat>0</marza_stawka_vat>";
+    }
+
+    private String buildRelationXml(String invoiceId) {
+        return "<dokument_rel_id>" + invoiceId + "</dokument_rel_id>";
+    }
+
+    private String buildPaymentDeadlineXml(boolean includePaymentDeadline) {
+        return includePaymentDeadline
+                ? "<termin_platnosci_data>" + LocalDate.now() + "</termin_platnosci_data>"
+                : "";
+    }
+
+    private String buildImei2Line(String imei2) {
+        return imei2 != null && !imei2.isBlank()
+                ? "IMEI2: " + imei2 + "\n"
+                : "";
+    }
+
+    private BigDecimal calculateDevicePrice(DeviceModel deviceModel) {
+        return deviceModel.isChargerIncluded()
+                ? deviceModel.getPrice().subtract(BigDecimal.valueOf(CHARGER_PRICE))
+                : deviceModel.getPrice();
+    }
+
+    private BigDecimal calculateChargerPrice(int chargerCount) {
+        return BigDecimal.valueOf(CHARGER_PRICE).multiply(BigDecimal.valueOf(chargerCount));
+    }
+
+    private boolean isAppleWatch(CrmDevice crmDevice) {
+        return crmDevice.getModel() != null
+                && crmDevice.getModel().toLowerCase().contains("watch");
+    }
+
+    private String upper(String value) {
+        return value == null ? "" : value.toUpperCase();
     }
 
     private String sendInvoiceRequest(String xml) throws Exception {
@@ -74,285 +434,12 @@ public class InvoiceGenerator {
 
     private String mapPaymentMethod(String paymentMethod) {
         return switch (paymentMethod) {
-            case "BLIK - Przelew online" -> "BLIK";
-            case "Za pobraniem"          -> "Opłata za pobraniem";
-            case "PayU / RATY 0%"        -> "PayU";
-            case "PayPo - Przelewy24"    -> "Przelewy24";
-            default                      -> "Przelew";
+            case "BLIK - Przelew online"                  -> "BLIK";
+            case "Za pobraniem",
+                 "Za pobraniem (InPost Pay) - InPost Pay" -> "Opłata za pobraniem";
+            case "PayU / RATY 0%"                         -> "PayU";
+            case "PayPo - Przelewy24"                     -> "Przelewy24";
+            default                                       -> "Przelew";
         };
-    }
-
-    private InvoiceResponseDto validateInvoiceResponse(String response) {
-        InvoiceResponseDto irdto = new InvoiceResponseDto();
-        try {
-            var doc = DocumentBuilderFactory.newInstance()
-                    .newDocumentBuilder()
-                    .parse(new InputSource(new StringReader(response)));
-
-            String kod = doc.getElementsByTagName("kod").item(0).getTextContent();
-            irdto.setKod(kod);
-
-            if (!"1".equals(kod)) {
-                return irdto;
-            }
-
-            String id = doc.getElementsByTagName("dokument_id").item(0).getTextContent();
-            String nr = doc.getElementsByTagName("dokument_nr").item(0).getTextContent();
-            String unik = doc.getElementsByTagName("unikatowy_kod").item(0).getTextContent();
-
-            irdto.setDokumentId(id);
-            irdto.setDokumentNr(nr);
-            irdto.setUnikatowyKod(unik);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-        return irdto;
-    }
-
-    private String generatePhoneFinalInvoice() {
-        return "";
-    }
-
-    private String generateChargerFinalInvoice() {
-        return "";
-    }
-
-    private String generateIPhoneVatInvoice() {
-        return "";
-    }
-
-    private InvoiceResponseDto generateIPhoneMarginInvoice(Order order, PhoneModel phoneModel) throws Exception {
-        CrmDevice crmDevice = new ThreeUToolsService().createCrmDeviceFromDirectory();
-        String imei = crmDevice.getImei();
-        String imei2 = crmDevice.getImei2();
-
-        String model = phoneModel.getName().toUpperCase();
-        String memory = phoneModel.getMemory();
-        String color = crmDevice.getColor().toUpperCase();
-        String iphone = model + " " + memory + " " + color;
-        Integer battery = new CrmIntegrationService().getBatteryByImei(crmDevice.getImei());
-
-        BigDecimal price = phoneModel.isChargerIncluded()
-                ? phoneModel.getPrice().subtract(BigDecimal.valueOf(100))
-                : phoneModel.getPrice();
-
-        String invoiceName =
-                        "TELEFON KOMÓRKOWY\n" +
-                        iphone + "\n" +
-                        "KONDYCJA BATERII: " + battery + "%\n" +
-                        "IMEI: " + imei + "\n" +
-                        ((imei2 != null && !imei2.isBlank()) ? "IMEI2: " + imei2 + "\n" : "") +
-                        "GWARANCJA SERWISOWA 24 MIESIĄCE";
-
-        String xml = "<dokument>" +
-                "<api_token>" + apiToken + "</api_token>" +
-                "<typ_faktury>5</typ_faktury>" +
-                "<typ_faktur_podtyp>0</typ_faktur_podtyp>" +
-                "<obliczaj_sume_wartosci_faktury_wg>0</obliczaj_sume_wartosci_faktury_wg>" +
-                "<numer_faktury></numer_faktury>" +
-                "<data_wystawienia>" + LocalDate.now() + "</data_wystawienia>" +
-                "<data_sprzedazy>" + order.getOrderSubmissionDate() + "</data_sprzedazy>" +
-                "<miejsce_wystawienia>Wrocław</miejsce_wystawienia>" +
-                "<data_oplacenia>" + order.getOrderSubmissionDate() + "</data_oplacenia>" +
-                "<status>2</status>" +
-                "<kwota_oplacona>" + price + "</kwota_oplacona>" +
-                "<uwagi>Procedura marży - towary używane</uwagi>" +
-                "<waluta>PLN</waluta>" +
-                "<kurs>1</kurs>" +
-                "<rodzaj_platnosci>" + mapPaymentMethod(order.getPaymentMethod()) + "</rodzaj_platnosci>" +
-                "<jezyk>0</jezyk>" +
-                "<szablon>0</szablon>" +
-                "<imie_nazwisko_wystawcy></imie_nazwisko_wystawcy>" +
-                "<id_dzialy_firmy>" + BIURO_MARZA + "</id_dzialy_firmy>" +
-                "<wyslij_dokument_do_klienta_emailem>0</wyslij_dokument_do_klienta_emailem>" +
-                "<obliczaj_wartosc_faktury_od>0</obliczaj_wartosc_faktury_od>" +
-
-                "<nabywca>" +
-                    "<firma_lub_osoba_prywatna>0</firma_lub_osoba_prywatna>" +
-                    "<nazwa>" + order.getClientName() + "</nazwa>" +
-                    "<telefon> </telefon>" +
-                    "<ulica_i_numer>" + order.getAddress().getStreetAndNumber() + "</ulica_i_numer>" +
-                    "<kod_pocztowy>" + order.getAddress().getPostalCode() + "</kod_pocztowy>" +
-                    "<miejscowosc>" + order.getAddress().getCity() + "</miejscowosc>" +
-                    "<kraj>PL</kraj>" +
-                    "<nip>" + order.getNip() + "</nip>" +
-                    "<email>" + order.getEmail() + "</email>" +
-                "</nabywca>" +
-
-                "<faktura_pozycje>" +
-                    "<nazwa>" + invoiceName + "</nazwa>" +
-                    "<ilosc>1.000</ilosc>" +
-                    "<jm>szt.</jm>" +
-                    "<vat>0</vat>" +
-                    "<symbol_gtu>6</symbol_gtu>" +
-                    "<wartosc_brutto>" + price + "</wartosc_brutto>" +
-                "</faktura_pozycje>" +
-                "</dokument>";
-
-        String response = sendInvoiceRequest(xml);
-        return validateInvoiceResponse(response);
-    }
-
-    private InvoiceResponseDto generateChargerVatInvoice(Order order, int chargerCount) throws Exception {
-        int price = CHARGER_PRICE * chargerCount;
-
-        String xml = "<dokument>" +
-                "<api_token>" + apiToken + "</api_token>" +
-                "<typ_faktury>0</typ_faktury>" +
-                "<typ_faktur_podtyp>0</typ_faktur_podtyp>" +
-                "<obliczaj_sume_wartosci_faktury_wg>0</obliczaj_sume_wartosci_faktury_wg>" +
-                "<numer_faktury></numer_faktury>" +
-                "<data_wystawienia>" + LocalDate.now() + "</data_wystawienia>" +
-                "<data_sprzedazy>" + order.getOrderSubmissionDate() + "</data_sprzedazy>" +
-                "<miejsce_wystawienia>Wrocław</miejsce_wystawienia>" +
-                "<data_oplacenia>" + order.getOrderSubmissionDate() + "</data_oplacenia>" +
-                "<status>2</status>" +
-                "<kwota_oplacona>" + price + "</kwota_oplacona>" +
-                "<uwagi>" + "zamówienie # " + order.getOrderNumber() + "</uwagi>" +
-                "<waluta>PLN</waluta>" +
-                "<kurs>1</kurs>" +
-                "<rodzaj_platnosci>" + mapPaymentMethod(order.getPaymentMethod()) + "</rodzaj_platnosci>" +
-                "<jezyk>0</jezyk>" +
-                "<szablon>0</szablon>" +
-                "<imie_nazwisko_wystawcy></imie_nazwisko_wystawcy>" +
-                "<id_dzialy_firmy>" + BIURO_VAT + "</id_dzialy_firmy>" +
-                "<wyslij_dokument_do_klienta_emailem>0</wyslij_dokument_do_klienta_emailem>" +
-                "<obliczaj_wartosc_faktury_od>0</obliczaj_wartosc_faktury_od>" +
-
-                "<nabywca>" +
-                    "<firma_lub_osoba_prywatna>0</firma_lub_osoba_prywatna>" +
-                    "<nazwa>" + order.getClientName() + "</nazwa>" +
-                    "<telefon> </telefon>" +
-                    "<ulica_i_numer>" + order.getAddress().getStreetAndNumber() + "</ulica_i_numer>" +
-                    "<kod_pocztowy>" + order.getAddress().getPostalCode() + "</kod_pocztowy>" +
-                    "<miejscowosc>" + order.getAddress().getCity() + "</miejscowosc>" +
-                    "<kraj>PL</kraj>" +
-                    "<nip>" + order.getNip() + "</nip>" +
-                    "<email>" + order.getEmail() + "</email>" +
-                "</nabywca>" +
-
-                "<faktura_pozycje>" +
-                    "<nazwa>" + "ŁADOWARKA + KABEL BASEUS" + "\n" + "</nazwa>" +
-                    "<ilosc>" + chargerCount + "</ilosc>" +
-                    "<jm>szt.</jm>" +
-                    "<vat>23</vat>" +
-                    "<symbol_gtu>6</symbol_gtu>" +
-                    "<wartosc_brutto>" + price + "</wartosc_brutto>" +
-                "</faktura_pozycje>" +
-                "</dokument>";
-        String response = sendInvoiceRequest(xml);
-        return validateInvoiceResponse(response);
-    }
-
-    private void generatePhoneAdvanceInvoice(Order order, PhoneModel phoneModel) throws Exception {
-
-        String model = phoneModel.getName().toUpperCase();
-        String memory = phoneModel.getMemory();
-        String color = phoneModel.getColor().toUpperCase();
-        String iphone = model + " " + memory + " " + color;
-
-        BigDecimal price = phoneModel.isChargerIncluded()
-                ? phoneModel.getPrice().subtract(BigDecimal.valueOf(100))
-                : phoneModel.getPrice();
-
-        String xml = "<dokument>" +
-                "<api_token>" + apiToken + "</api_token>" +
-                "<typ_faktury>11</typ_faktury>" +
-                "<typ_faktur_podtyp>0</typ_faktur_podtyp>" +
-                "<obliczaj_sume_wartosci_faktury_wg>0</obliczaj_sume_wartosci_faktury_wg>" +
-                "<numer_faktury></numer_faktury>" +
-                "<data_wystawienia>" + LocalDate.now() + "</data_wystawienia>" +
-                "<data_sprzedazy>" + order.getOrderSubmissionDate() + "</data_sprzedazy>" +
-                "<miejsce_wystawienia>Wrocław</miejsce_wystawienia>" +
-                "<termin_platnosci_data>" + LocalDate.now().plusDays(3) + "</termin_platnosci_data>" +
-                "<data_oplacenia>" + order.getOrderSubmissionDate() + "</data_oplacenia>" +
-                "<status>2</status>" +
-                "<kwota_oplacona>" + price + "</kwota_oplacona>" +
-                "<uwagi>Procedura marży - towary używane</uwagi>" +
-                "<waluta>PLN</waluta>" +
-                "<kurs>1</kurs>" +
-                "<rodzaj_platnosci>" + mapPaymentMethod(order.getPaymentMethod()) + "</rodzaj_platnosci>" +
-                "<jezyk>0</jezyk>" +
-                "<szablon>0</szablon>" +
-                "<imie_nazwisko_wystawcy></imie_nazwisko_wystawcy>" +
-                "<id_dzialy_firmy>" + BIURO_MARZA + "</id_dzialy_firmy>" +
-                "<wyslij_dokument_do_klienta_emailem>0</wyslij_dokument_do_klienta_emailem>" +
-                "<obliczaj_wartosc_faktury_od>0</obliczaj_wartosc_faktury_od>" +
-
-                "<nabywca>" +
-                    "<firma_lub_osoba_prywatna>0</firma_lub_osoba_prywatna>" +
-                    "<nazwa>" + order.getClientName() + "</nazwa>" +
-                    "<email> </email>" +
-                    "<telefon> </telefon>" +
-                    "<ulica_i_numer>" + order.getAddress().getStreetAndNumber() + "</ulica_i_numer>" +
-                    "<kod_pocztowy>" + order.getAddress().getPostalCode() + "</kod_pocztowy>" +
-                    "<miejscowosc>" + order.getAddress().getCity() + "</miejscowosc>" +
-                    "<kraj>PL</kraj>" +
-                    "<nip>" + order.getNip() + "</nip>" +
-                "</nabywca>" +
-
-                "<faktura_pozycje>" +
-                    "<nazwa>" + iphone + "\n" + "zamówienie #" + order.getOrderNumber() + " icentrumsklep.pl" + "</nazwa>" +
-                    "<ilosc>1.000</ilosc>" +
-                    "<jm>szt.</jm>" +
-                    "<vat>0</vat>" +
-                    "<symbol_gtu>6</symbol_gtu>" +
-                    "<wartosc_brutto>" + price + "</wartosc_brutto>" +
-                "</faktura_pozycje>" +
-                "</dokument>";
-
-        sendInvoiceRequest(xml);
-    }
-
-    private void generateChargerAdvanceInvoice(Order order, int chargerCount) throws Exception {
-        int price = CHARGER_PRICE * chargerCount;
-
-        String xml = "<dokument>" +
-                "<api_token>" + apiToken + "</api_token>" +
-                "<typ_faktury>11</typ_faktury>" +
-                "<typ_faktur_podtyp>0</typ_faktur_podtyp>" +
-                "<obliczaj_sume_wartosci_faktury_wg>0</obliczaj_sume_wartosci_faktury_wg>" +
-                "<numer_faktury></numer_faktury>" +
-                "<data_wystawienia>" + LocalDate.now() + "</data_wystawienia>" +
-                "<data_sprzedazy>" + order.getOrderSubmissionDate() + "</data_sprzedazy>" +
-                "<miejsce_wystawienia>Wrocław</miejsce_wystawienia>" +
-                "<termin_platnosci_data>" + LocalDate.now().plusDays(3) + "</termin_platnosci_data>" +
-                "<data_oplacenia>" + order.getOrderSubmissionDate() + "</data_oplacenia>" +
-                "<status>2</status>" +
-                "<kwota_oplacona>" + price + "</kwota_oplacona>" +
-                "<uwagi></uwagi>" +
-                "<waluta>PLN</waluta>" +
-                "<kurs>1</kurs>" +
-                "<rodzaj_platnosci>" + mapPaymentMethod(order.getPaymentMethod()) + "</rodzaj_platnosci>" +
-                "<jezyk>0</jezyk>" +
-                "<szablon>0</szablon>" +
-                "<imie_nazwisko_wystawcy></imie_nazwisko_wystawcy>" +
-                "<id_dzialy_firmy>" + BIURO_VAT + "</id_dzialy_firmy>" +
-                "<wyslij_dokument_do_klienta_emailem>0</wyslij_dokument_do_klienta_emailem>" +
-                "<obliczaj_wartosc_faktury_od>0</obliczaj_wartosc_faktury_od>" +
-
-                "<nabywca>" +
-                    "<firma_lub_osoba_prywatna>0</firma_lub_osoba_prywatna>" +
-                    "<nazwa>" + order.getClientName() + "</nazwa>" +
-                    "<email>" + order.getEmail() + "</email>" +
-                    "<telefon> </telefon>" +
-                    "<ulica_i_numer>" + order.getAddress().getStreetAndNumber() + "</ulica_i_numer>" +
-                    "<kod_pocztowy>" + order.getAddress().getPostalCode() + "</kod_pocztowy>" +
-                    "<miejscowosc>" + order.getAddress().getCity() + "</miejscowosc>" +
-                    "<kraj>PL</kraj>" +
-                    "<nip>" + order.getNip() + "</nip>" +
-                "</nabywca>" +
-
-                "<faktura_pozycje>" +
-                    "<nazwa>" + "ŁADOWARKA + KABEL BASEUS" + "\n" + "zamówienie #" + order.getOrderNumber() + " icentrumsklep.pl" + "</nazwa>" +
-                    "<ilosc>" + chargerCount + "</ilosc>" +
-                    "<jm>szt.</jm>" +
-                    "<vat>23</vat>" +
-                    "<symbol_gtu>6</symbol_gtu>" +
-                    "<wartosc_brutto>" + price + "</wartosc_brutto>" +
-                "</faktura_pozycje>" +
-                "</dokument>";
-
-        sendInvoiceRequest(xml);
     }
 }

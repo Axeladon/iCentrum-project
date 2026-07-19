@@ -1,6 +1,7 @@
 package org.example.scraper.auth;
 
 import org.example.scraper.model.SiteId;
+import org.example.scraper.service.HttpRetryClient;
 import org.jsoup.Connection;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -77,19 +78,25 @@ public class SessionManager {
 
     public Document getPage(String url) throws Exception {
         logCookies("Before getPage: " + url);
-        Connection.Response pageResponse = Jsoup.connect(url)
-                .cookies(cookieManager.getAll(SiteId.SHOPER))
-                .method(Connection.Method.GET)
-                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)...")
-                .header("Referer", "https://applecentrum-612788.shoparena.pl/admin/dashboard")
-                .execute();
+
+        Connection.Response pageResponse = HttpRetryClient.retry(() ->
+                Jsoup.connect(url)
+                        .cookies(cookieManager.getAll(SiteId.SHOPER))
+                        .method(Connection.Method.GET)
+                        .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)...")
+                        .header("Referer", "https://applecentrum-612788.shoparena.pl/admin/dashboard")
+                        .execute()
+        );
 
         if (pageResponse.statusCode() == 200) {
             System.out.println("Page " + url + " successfully loaded!");
             logCookies("After getPage: " + url);
         } else {
-            throw new Exception("Failed to load page! Status code: " + pageResponse.statusCode());
+            throw new Exception(
+                    "Failed to load page! Status code: " + pageResponse.statusCode()
+            );
         }
+
         return pageResponse.parse();
     }
 
